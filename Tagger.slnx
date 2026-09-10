@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Util/Util.csproj" Id="b65c01a8-c0d2-4a62-be74-848fac08ccb7" />
+  <Project Path="Tagger/Tagger.csproj" Id="b1099982-1dd4-420f-8d19-a5e146abcc75" />
+</Solution>
