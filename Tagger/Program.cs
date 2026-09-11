@@ -1,7 +1,14 @@
 ﻿using System.ComponentModel;
+using Microsoft.Extensions.FileSystemGlobbing;
+using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using Spectre.Tui;
 using Spectre.Tui.App;
+using Tagger;
+using Justify = Spectre.Tui.Justify;
+using Paragraph = Spectre.Tui.Paragraph;
+using Size = Spectre.Tui.Size;
 
 var app = new CommandApp();
 app.Configure(config =>
@@ -21,24 +28,79 @@ internal class InitCommand : Command<InitCommand.Settings>
 
     protected override int Execute(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        System.Console.WriteLine($"Initialized");
+        var loaded = Store.Load(false);
+        if (loaded != null)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: Found store at [blue]{loaded.FilePath}[/], aborting");
+            return -1;
+        }
+
+        var store = new Store();
+        store.Save();
+
+        AnsiConsole.MarkupLineInterpolated($"Initialized to [blue]{store.FilePath}[/]");
         return 0;
     }
 }
 
+internal static class Glob
+{
+    public static IEnumerable<string> Files(IEnumerable<string> args)
+    {
+        var m = new Matcher();
+
+        // does this recursive add all files?
+
+        m.AddIncludePatterns(args);
+        var r = m.GetResultsInFullPath(Environment.CurrentDirectory);
+
+        // get absolute paths
+        return r.Select(f => (new FileInfo(f)).FullName);
+    }
+}
 
 internal class AddCommand : Command<AddCommand.Settings>
 {
     public class Settings : CommandSettings
     {
-        [CommandArgument(0, "<name>")]
-        [Description("The file or dir to to add")]
-        public string PackageName { get; init; } = string.Empty;
+        [CommandArgument(0, "<file>")]
+        [Description("The files to to add")]
+        public string[] FileNames { get; init; } = [];
     }
 
-    protected override int Execute(CommandContext context, Settings settings, CancellationToken cancellation)
+    protected override int Execute(CommandContext context, Settings arg, CancellationToken cancellation)
     {
-        System.Console.WriteLine($"Added package {settings.PackageName}");
+        var store = Store.Load();
+        if (store == null) return -1;
+
+        int added = 0;
+        foreach (var path in Glob.Files(arg.FileNames))
+        {
+            if (File.Exists(path) == false)
+            {
+                AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: Failed to add [blue]{path}[/]");
+                continue;
+            }
+
+            if (store.Files.Find(x => path == x.Path) != null)
+            {
+                AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: Already contains [blue]{path}[/]");
+                continue;
+            }
+
+            store.Files.Add(new FileWithData{Path = path});
+            added += 1;
+        }
+
+        if (added == 0)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[red]ERROR[/]: Added no files");
+            return -1;
+        }
+
+        store.Save();
+
+        AnsiConsole.MarkupLineInterpolated($"Added [blue]{added}[/] files");
         return 0;
     }
 }
@@ -51,8 +113,14 @@ internal class ListCommand : Command<ListCommand.Settings>
 
     protected override int Execute(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        System.Console.WriteLine("Packages:");
-        System.Console.WriteLine("  (none yet)");
+
+        var store = Store.Load();
+        if(store == null) return -1;
+        foreach (var f in store.Files)
+        {
+            AnsiConsole.MarkupLineInterpolated($"* {Path.GetRelativePath(Environment.CurrentDirectory, f.Path)}");
+        }
+        AnsiConsole.MarkupLineInterpolated($"[blue]{store.Files.Count}[/] file(s)");
         return 0;
     }
 }
@@ -85,13 +153,12 @@ public class MainScreen : Screen
     public override void Render(RenderContext context)
     {
         context.Render(
-            Paragraph.FromMarkup(
+            ParagraphExtensions.Centered(Paragraph.FromMarkup(
                     """
                     Press [yellow]SPACE[/] to open
                     Press [blue]CTRL+C[/] to quit the application
                     """
-                )
-                .Centered()
+                ))
                 .AlignedMiddle()
         );
     }
