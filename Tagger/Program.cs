@@ -1,12 +1,14 @@
-﻿using System.ComponentModel;
-using Microsoft.Extensions.FileSystemGlobbing;
+﻿using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Spectre.Tui;
 using Spectre.Tui.App;
+using System.ComponentModel;
+using System.Reflection;
 using Tagger;
 using Justify = Spectre.Tui.Justify;
+using Layout = Spectre.Console.Layout;
 using Paragraph = Spectre.Tui.Paragraph;
 using Size = Spectre.Tui.Size;
 
@@ -134,57 +136,11 @@ internal class EditCommand : AsyncCommand<EditCommand.Settings>
 
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
     {
+        var store = Store.Load();
+        if (store == null) return -1;
+
         await Application.Create()
-            .RunAsync(new MainScreen());
+            .RunAsync(new MainScreen(store.Files));
         return 0;
-    }
-}
-
-public class MainScreen : Screen
-{
-    public override void OnMessage(ApplicationContext context, ApplicationMessage message)
-    {
-        if (message is KeyMessage key && key.Key == Key.Space)
-        {
-            context.Push(new PopUp());
-        }
-    }
-
-    public override void Render(RenderContext context)
-    {
-        context.Render(
-            ParagraphExtensions.Centered(Paragraph.FromMarkup(
-                    """
-                    Press [yellow]SPACE[/] to open
-                    Press [blue]CTRL+C[/] to quit the application
-                    """
-                ))
-                .AlignedMiddle()
-        );
-    }
-}
-
-public class PopUp : Screen
-{
-    public override bool IsTransparent => true;
-
-    public override void OnMessage(ApplicationContext context, ApplicationMessage message)
-    {
-        if (message is KeyMessage key && key.Key == Key.Escape)
-        {
-            context.Pop();
-        }
-    }
-
-    public override void Render(RenderContext context)
-    {
-        context.Render(
-            new PopupWidget(new Size(50, 10))
-                .Content(
-                    new BoxWidget()
-                        .Border(Border.Rounded)
-                        .Title("Popup", TitlePosition.Top, Justify.Center)
-                        .Inner(Paragraph.FromMarkup("Press [yellow]ESC[/] to close"))
-                ));
     }
 }

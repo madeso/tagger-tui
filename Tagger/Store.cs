@@ -10,6 +10,9 @@ public class FileWithData
 
     [JsonPropertyName("properties")]
     public Dictionary<string, string> Properties { get; set; } = new();
+
+    [JsonIgnore]
+    public bool IsSelected { get; set; } = false;
 }
 
 public class Store
