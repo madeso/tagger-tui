@@ -35,7 +35,7 @@ public sealed class FileItem(FileWithData file) : IListWidgetItem
 public sealed class FileWidget(List<FileItem> items) : JustInTimeWidget
 {
     private readonly ListWidget<FileItem> _widget = new ListWidget<FileItem>(items)
-        .HighlightSymbol("→ ")
+        .HighlightSymbol("->")
         .WrapAround()
         .SelectedIndex(0);
 
@@ -66,6 +66,15 @@ public sealed class FileWidget(List<FileItem> items) : JustInTimeWidget
                 .Length(this.Length)
                 .ViewportLength(1)
                 .Style(Color.Gray)
-                .ThumbStyle(Color.Green));
+                .ThumbStyle(Color.Green)
+                .BeginSymbol('\\')
+                .EndSymbol('/')
+            );
+    }
+
+    public void Toggle()
+    {
+        Selected?.Toggle();
+        MarkAsDirty();
     }
 }

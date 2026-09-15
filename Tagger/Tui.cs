@@ -20,8 +20,8 @@ public static class SpectreExtension
     public static Rectangle RenderFrame(RenderContext context, Layout root, Layout target)
     {
         var middle = root.FindArea(context, target);
-        context.Render(new BoxWidget(Color.Red).Border(Border.Double), middle);
-        context.Render(new ClearWidget('╱', Color.Gray), middle.Inflate(-1, -1));
+        context.Render(new BoxWidget(Color.Red).Border(Border.Plain), middle);
+        context.Render(new ClearWidget(' ', Color.Gray), middle.Inflate(-1, -1));
 
         // Active tab content
         return middle.Inflate(new Size(-10, -4));
@@ -31,7 +31,7 @@ public static class SpectreExtension
     {
         return new BoxWidget()
             .Style(Color.Green)
-            .Border(Border.Rounded)
+            .Border(Border.Plain)
             .TitlePadding(1)
             .MarkupTitle($"[yellow]{title}[/]")
             .Inner(child);
@@ -86,7 +86,10 @@ internal class KeyActions
         return this;
     }
 
-    public SingleAction? Match(KeyMessage key) => binds.FirstOrDefault(x => x.Key.Matches(key));
+    public SingleAction? Match(KeyMessage key)
+    {
+        return binds.FirstOrDefault(x => x.Key.Matches(key));
+    }
 
     public IEnumerable<KeyBinding> KeyBinds() => binds.Select(x => x.Key);
 }
@@ -105,8 +108,8 @@ public class MainScreen : Screen
         files = new FileWidget(data.Select(x => new FileItem(x)).ToList());
 
         actions = new KeyActions()
-            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { files.Selected?.Toggle(); })
-            .Bind(KeyBinding.For(Key.Delete).WithHelp("Test popup"), ctx => ctx.Push(new PopUp()))
+            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { files.Toggle();})
+            .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp()))
             .Bind(KeyBinding.For(Key.Escape).WithHelp("Quit"), ctx => ctx.Pop())
             ;
     }
