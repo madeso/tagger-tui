@@ -95,6 +95,15 @@ public sealed class FileTableWidget<T> : JustInTimeWidget
         MarkAsDirty();
     }
 
+    public void WithAll(Action<T> action)
+    {
+        foreach (var row in _table.Rows)
+        {
+            action(row.Item);
+        }
+        MarkAsDirty();
+    }
+
     public CompositeWidget Render()
     {
         return new CompositeWidget(

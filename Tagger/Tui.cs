@@ -1,8 +1,6 @@
 ﻿using Spectre.Console;
 using Spectre.Tui;
 using Spectre.Tui.App;
-using System.ComponentModel.Design.Serialization;
-using System.Xml.Linq;
 using Justify = Spectre.Tui.Justify;
 using Layout = Spectre.Tui.Layout;
 using Paragraph = Spectre.Tui.Paragraph;
@@ -107,42 +105,40 @@ public class MainScreen : Screen
     private readonly Layout _middle = new Layout("middle");
     private readonly Layout _bottom = new Layout("bottom").Size(1);
     private readonly Layout _layout;
-    private readonly ScrollableListWidget<FileItem> _files; // _scrollableLists;
     private readonly KeyActions _actions;
 
-    private readonly FileTableWidget<FileWithData> _scrollableLists; // _files;
+    private readonly FileTableWidget<FileWithData> _files; // _files;
 
     public MainScreen(IEnumerable<FileWithData> data)
     {
         _layout = new Layout("root").SplitRows(_middle, _bottom);
 
         var dat = data.ToList();
-        _files = new ScrollableListWidget<FileItem>(dat.Select(x => new FileItem(x)).ToList());
-        _scrollableLists = new TableBuilder<FileWithData>(dat)
+        _files = new TableBuilder<FileWithData>(dat)
             .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? Strings.CheckMark : ""))
             .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path))
             .Create();
 
         _actions = new KeyActions()
-            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { _scrollableLists.WithSelected(s => s.Toggle());})
-            .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp()))
+            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { _files.WithSelected(s => s.Toggle());})
+            .Bind(KeyBinding.For('a').WithHelp("Select all"), (_) => { _files.WithAll(s => s.IsSelected = true); })
+            .Bind(KeyBinding.For('n').WithHelp("Select none"), (_) => { _files.WithAll(s => s.IsSelected = false); })
+            .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
             .Bind(KeyBinding.For(Key.Escape).WithHelp("Quit"), ctx => ctx.Pop())
             ;
     }
 
     public override void OnMessage(ApplicationContext context, ApplicationMessage message)
     {
-        if (message is KeyMessage key)
+        if (message is not KeyMessage key) return;
+        var found = _actions.Match(key);
+        if (found != null)
         {
-            var found = _actions.Match(key);
-            if (found != null)
-            {
-                found.Click(context);
-            }
-            else
-            {
-                _scrollableLists.HandleKey(key);
-            }
+            found.Click(context);
+        }
+        else
+        {
+            _files.HandleKey(key);
         }
     }
 
@@ -150,28 +146,18 @@ public class MainScreen : Screen
     {
         var body = SpectreExtension.RenderFrame(context, _layout, _middle);
 
-        context.Render(new HelpWidget(new KeymapHelper().Add(_scrollableLists.KeyMap).Add(_actions.KeyBinds())), _layout.FindArea(context, _bottom));
-        context.Render(SpectreExtension.Screen("Items", _scrollableLists.Render()), body);
-        /*
-        context.Render(
-            Paragraph.FromMarkup(
-                    """
-                    Press [yellow]SPACE[/] to open
-                    Press [blue]CTRL+C[/] to quit the application
-                    """
-                ).Centered()
-                .AlignedMiddle()
-        );*/
+        context.Render(new HelpWidget(new KeymapHelper().Add(_files.KeyMap).Add(_actions.KeyBinds())), _layout.FindArea(context, _bottom));
+        context.Render(SpectreExtension.Screen("Items", _files.Render()), body);
     }
 }
 
-public class PopUp : Screen
+public class PopUp(string message, string? title = null) : Screen
 {
     public override bool IsTransparent => true;
 
-    public override void OnMessage(ApplicationContext context, ApplicationMessage message)
+    public override void OnMessage(ApplicationContext context, ApplicationMessage appMessage)
     {
-        if (message is KeyMessage key && key.Key == Key.Escape)
+        if (appMessage is KeyMessage key && key.Key == Key.Escape)
         {
             context.Pop();
         }
@@ -183,9 +169,9 @@ public class PopUp : Screen
             new PopupWidget(new Size(50, 10))
                 .Content(
                     new BoxWidget()
-                        .Border(Border.Rounded)
-                        .Title("Popup", TitlePosition.Top, Justify.Center)
-                        .Inner(Paragraph.FromMarkup("Press [yellow]ESC[/] to close"))
+                        .Border(Border.Plain)
+                        .Title(title ?? "", TitlePosition.Top, Justify.Center)
+                        .Inner(Paragraph.FromMarkup($"{message}\n\nPress [yellow]ESC[/] to close").Centered().AlignedMiddle())
                 ));
     }
 }
