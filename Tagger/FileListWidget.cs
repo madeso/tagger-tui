@@ -16,7 +16,7 @@ public sealed class FileItem(FileWithData file) : IListWidgetItem
 
     Text IListWidgetItem.CreateText(bool isHovering)
     {
-        var symbol = IsSelected ? "✓" : " ";
+        var symbol = IsSelected ? Strings.CheckMark : " ";
         var decoration = isHovering
             ? "yellow"
             : (IsSelected ? "green" : "grey");

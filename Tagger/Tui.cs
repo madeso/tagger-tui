@@ -13,6 +13,11 @@ using Text = Spectre.Tui.Text;
 namespace Tagger;
 
 
+public static class Strings
+{
+    public const string CheckMark = "✓";
+}
+
 public static class SpectreExtension
 {
     public static Rectangle FindArea(this Layout root, RenderContext context, Layout target)
@@ -114,7 +119,7 @@ public class MainScreen : Screen
         var dat = data.ToList();
         _files = new ScrollableListWidget<FileItem>(dat.Select(x => new FileItem(x)).ToList());
         _scrollableLists = new TableBuilder<FileWithData>(dat)
-            .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? "x" : ""))
+            .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? Strings.CheckMark : ""))
             .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path))
             .Create();
 
