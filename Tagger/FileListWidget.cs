@@ -1,7 +1,4 @@
 ﻿using Spectre.Tui;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using Spectre.Console;
 using Padding = Spectre.Tui.Padding;
 using Text = Spectre.Tui.Text;
@@ -32,17 +29,16 @@ public sealed class FileItem(FileWithData file) : IListWidgetItem
     }
 }
 
-public sealed class FileWidget(List<FileItem> items) : JustInTimeWidget
+public sealed class ScrollableListWidget<T>(List<T> items) : JustInTimeWidget
+    where T : IListWidgetItem
 {
-    private readonly ListWidget<FileItem> _widget = new ListWidget<FileItem>(items)
+    private readonly ListWidget<T> _widget = new ListWidget<T>(items)
         .HighlightSymbol("->")
         .WrapAround()
         .SelectedIndex(0);
 
-    public int Position => _widget.SelectedIndex ?? 0;
-    public int Length => _widget.Items.Count;
-    public FileItem? Selected => _widget.SelectedItem;
-    public ListKeyMap<FileItem> KeyMap => _widget.KeyMap;
+    private T? Selected => _widget.SelectedItem;
+    public ListKeyMap<T> KeyMap => _widget.KeyMap;
 
     public void HandleKey(IKeyInfo info)
     {
@@ -62,8 +58,8 @@ public sealed class FileWidget(List<FileItem> items) : JustInTimeWidget
             new PaddingWidget(new Padding(1, 0, 2, 0), this),
             new ScrollbarWidget()
                 .VerticalRight()
-                .Position(this.Position)
-                .Length(this.Length)
+                .Position(_widget.SelectedIndex ?? 0)
+                .Length(_widget.Items.Count)
                 .ViewportLength(1)
                 .Style(Color.Gray)
                 .ThumbStyle(Color.Green)
@@ -72,9 +68,12 @@ public sealed class FileWidget(List<FileItem> items) : JustInTimeWidget
             );
     }
 
-    public void Toggle()
+    public void WithSelected(Action<T> action)
     {
-        Selected?.Toggle();
+        var s = Selected;
+        if (s == null) return;
+
+        action(s);
         MarkAsDirty();
     }
 }

@@ -1,11 +1,14 @@
-﻿using System.ComponentModel.Design.Serialization;
-using Spectre.Console;
+﻿using Spectre.Console;
 using Spectre.Tui;
 using Spectre.Tui.App;
+using System.ComponentModel.Design.Serialization;
+using System.Xml.Linq;
 using Justify = Spectre.Tui.Justify;
 using Layout = Spectre.Tui.Layout;
 using Paragraph = Spectre.Tui.Paragraph;
 using Size = Spectre.Tui.Size;
+using TableColumn = Spectre.Tui.TableColumn;
+using Text = Spectre.Tui.Text;
 
 namespace Tagger;
 
@@ -96,19 +99,27 @@ internal class KeyActions
 
 public class MainScreen : Screen
 {
-    private Layout middle = new Layout("middle");
-    private Layout bottom = new Layout("bottom").Size(1);
-    private Layout layout;
-    private FileWidget files;
-    private KeyActions actions;
+    private readonly Layout _middle = new Layout("middle");
+    private readonly Layout _bottom = new Layout("bottom").Size(1);
+    private readonly Layout _layout;
+    private readonly ScrollableListWidget<FileItem> _files; // _scrollableLists;
+    private readonly KeyActions _actions;
+
+    private readonly FileTableWidget<FileWithData> _scrollableLists; // _files;
 
     public MainScreen(IEnumerable<FileWithData> data)
     {
-        layout = new Layout("root").SplitRows(middle, bottom);
-        files = new FileWidget(data.Select(x => new FileItem(x)).ToList());
+        _layout = new Layout("root").SplitRows(_middle, _bottom);
 
-        actions = new KeyActions()
-            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { files.Toggle();})
+        var dat = data.ToList();
+        _files = new ScrollableListWidget<FileItem>(dat.Select(x => new FileItem(x)).ToList());
+        _scrollableLists = new TableBuilder<FileWithData>(dat)
+            .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? "x" : ""))
+            .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path))
+            .Create();
+
+        _actions = new KeyActions()
+            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { _scrollableLists.WithSelected(s => s.Toggle());})
             .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp()))
             .Bind(KeyBinding.For(Key.Escape).WithHelp("Quit"), ctx => ctx.Pop())
             ;
@@ -118,24 +129,24 @@ public class MainScreen : Screen
     {
         if (message is KeyMessage key)
         {
-            var found = actions.Match(key);
+            var found = _actions.Match(key);
             if (found != null)
             {
                 found.Click(context);
             }
             else
             {
-                files.HandleKey(key);
+                _scrollableLists.HandleKey(key);
             }
         }
     }
 
     public override void Render(RenderContext context)
     {
-        var body = SpectreExtension.RenderFrame(context, layout, middle);
+        var body = SpectreExtension.RenderFrame(context, _layout, _middle);
 
-        context.Render(new HelpWidget(new KeymapHelper().Add(files.KeyMap).Add(actions.KeyBinds())), layout.FindArea(context, bottom));
-        context.Render(SpectreExtension.Screen("Items", files.Render()), body);
+        context.Render(new HelpWidget(new KeymapHelper().Add(_scrollableLists.KeyMap).Add(_actions.KeyBinds())), _layout.FindArea(context, _bottom));
+        context.Render(SpectreExtension.Screen("Items", _scrollableLists.Render()), body);
         /*
         context.Render(
             Paragraph.FromMarkup(

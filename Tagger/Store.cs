@@ -13,6 +13,11 @@ public class FileWithData
 
     [JsonIgnore]
     public bool IsSelected { get; set; } = false;
+
+    public void Toggle()
+    {
+        IsSelected = !IsSelected;
+    }
 }
 
 public class Store
