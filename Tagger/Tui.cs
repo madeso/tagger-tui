@@ -1,4 +1,5 @@
-﻿using Spectre.Console;
+﻿using System.Collections.Immutable;
+using Spectre.Console;
 using Spectre.Tui;
 using Spectre.Tui.App;
 using Justify = Spectre.Tui.Justify;
@@ -123,6 +124,16 @@ public class MainScreen : Screen
             .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { _files.WithSelected(s => s.Toggle());})
             .Bind(KeyBinding.For('a').WithHelp("Select all"), (_) => { _files.WithAll(s => s.IsSelected = true); })
             .Bind(KeyBinding.For('n').WithHelp("Select none"), (_) => { _files.WithAll(s => s.IsSelected = false); })
+            .Bind(KeyBinding.For('x').WithHelp("Extract selected"), ctx =>
+            {
+                var selectedItems = _files.Items.Where(s => s.IsSelected).ToImmutableArray();
+                if (selectedItems.Length == 0)
+                {
+                    ctx.Push(new PopUp("Nothing is selected"));
+                    return;
+                }
+                ctx.Push(new ExtractScreen(selectedItems));
+            })
             .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
             .Bind(KeyBinding.For(Key.Escape).WithHelp("Quit"), ctx => ctx.Pop())
             ;
@@ -148,6 +159,58 @@ public class MainScreen : Screen
 
         context.Render(new HelpWidget(new KeymapHelper().Add(_files.KeyMap).Add(_actions.KeyBinds())), _layout.FindArea(context, _bottom));
         context.Render(SpectreExtension.Screen("Items", _files.Render()), body);
+    }
+}
+
+
+public class ExtractScreen : Screen
+{
+    private readonly Layout _middle = new Layout("middle");
+    private readonly Layout _bottom = new Layout("bottom").Size(1);
+    private readonly Layout _layout;
+    private readonly KeyActions _actions;
+
+    private readonly FileTableWidget<FileWithData> _files; // _files;
+
+    public ExtractScreen(IEnumerable<FileWithData> data)
+    {
+        _layout = new Layout("root").SplitRows(_middle, _bottom);
+
+        var dat = data.ToList();
+        _files = new TableBuilder<FileWithData>(dat)
+            .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? Strings.CheckMark : ""))
+            .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path))
+            .Create();
+
+        _actions = new KeyActions()
+            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { _files.WithSelected(s => s.Toggle()); })
+            .Bind(KeyBinding.For('a').WithHelp("Select all"), (_) => { _files.WithAll(s => s.IsSelected = true); })
+            .Bind(KeyBinding.For('n').WithHelp("Select none"), (_) => { _files.WithAll(s => s.IsSelected = false); })
+            .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
+            .Bind(KeyBinding.For(Key.Enter).WithHelp("Done"), ctx => ctx.Pop())
+            ;
+    }
+
+    public override void OnMessage(ApplicationContext context, ApplicationMessage message)
+    {
+        if (message is not KeyMessage key) return;
+        var found = _actions.Match(key);
+        if (found != null)
+        {
+            found.Click(context);
+        }
+        else
+        {
+            _files.HandleKey(key);
+        }
+    }
+
+    public override void Render(RenderContext context)
+    {
+        var body = SpectreExtension.RenderFrame(context, _layout, _middle);
+
+        context.Render(new HelpWidget(new KeymapHelper().Add(_files.KeyMap).Add(_actions.KeyBinds())), _layout.FindArea(context, _bottom));
+        context.Render(SpectreExtension.Screen("Extract", _files.Render()), body);
     }
 }
 

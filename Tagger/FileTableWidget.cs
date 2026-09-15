@@ -50,6 +50,7 @@ public sealed class FileTableWidget<T> : JustInTimeWidget
     private readonly TableWidget<TRow<T>> _table;
 
     public TableKeyMap<TRow<T>> KeyMap => _table.KeyMap;
+    public IEnumerable<T> Items => _table.Rows.Select(x => x.Item);
 
     public FileTableWidget(List<TRow<T>> items, ImmutableArray<ColumnDef<T>> columns)
     {
