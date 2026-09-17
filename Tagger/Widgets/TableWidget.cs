@@ -1,16 +1,16 @@
 ﻿using Spectre.Console;
 using Spectre.Tui;
+using Spectre.Tui.App;
 using System.Collections.Immutable;
-using System.Globalization;
 using Padding = Spectre.Tui.Padding;
 using TableColumn = Spectre.Tui.TableColumn;
 using TableRow = Spectre.Tui.TableRow;
 using Text = Spectre.Tui.Text;
 
-namespace Tagger;
+namespace Tagger.Widgets;
 
 
-public sealed class TRow<T>(T t, ImmutableArray<ColumnDef<T>> columns)
+public sealed class Row<T>(T t, ImmutableArray<ColumnDef<T>> columns)
     : TableRow
 {
     protected override Text[] CreateCells(bool isSelected)
@@ -37,24 +37,27 @@ public class TableBuilder<T>(IEnumerable<T> items) where T : class
         return this;
     }
 
-    public FileTableWidget<T> Create()
+    public TableWidget<T> Create()
     {
         var cols = _columns.ToImmutableArray();
-        return new FileTableWidget<T>(items.Select(x => new TRow<T>(x, cols)).ToList(), cols);
+        return new TableWidget<T>(items.Select(x => new Row<T>(x, cols)).ToList(), cols);
     }
 }
 
-public sealed class FileTableWidget<T> : JustInTimeWidget
+public sealed class TableWidget<T> : JustInTimeWidget, IFocusable, IForwardWidgetEvent, IKeyBindable
     where T : class
 {
-    private readonly TableWidget<TRow<T>> _table;
+    public bool IsForwardable(KeyBinding binding) => false;
+    public void Handle(KeyMessage key) => HandleKey(key);
 
-    public TableKeyMap<TRow<T>> KeyMap => _table.KeyMap;
+    private readonly Spectre.Tui.TableWidget<Row<T>> _table;
+
+    public TableKeyMap<Row<T>> KeyMap => _table.KeyMap;
     public IEnumerable<T> Items => _table.Rows.Select(x => x.Item);
 
-    public FileTableWidget(List<TRow<T>> items, ImmutableArray<ColumnDef<T>> columns)
+    public TableWidget(List<Row<T>> items, ImmutableArray<ColumnDef<T>> columns)
     {
-        var t = new TableWidget<TRow<T>>(items);
+        var t = new Spectre.Tui.TableWidget<Row<T>>(items);
 
         foreach (var c in columns)
         {
@@ -62,23 +65,30 @@ public sealed class FileTableWidget<T> : JustInTimeWidget
         }
 
         t
-            .HighlightStyle(new Style(decoration: Decoration.Invert))
-            .HeaderStyle(new Style(Color.Green, decoration: Decoration.Bold))
             .WrapAround()
             .SelectedIndex(0);
 
         _table = t;
+
+        SetTableStyle();
+    }
+
+    private void SetTableStyle()
+    {
+        Style? newHighlight = new Style(decoration: Decoration.Invert);
+
+        if (IsFocused == false)
+        {
+            newHighlight = null;
+        }
+
+        _table.HeaderStyle(new Style(IsFocused ? Color.Green : Color.Gray, decoration: Decoration.Bold));
+        _table.HighlightStyle(newHighlight);
     }
 
     public void HandleKey(IKeyInfo info)
     {
         _table.KeyMap.HandleKey(info);
-        MarkAsDirty();
-    }
-
-    public void MoveDown()
-    {
-        _table.MoveDown();
         MarkAsDirty();
     }
 
@@ -102,11 +112,14 @@ public sealed class FileTableWidget<T> : JustInTimeWidget
         {
             action(row.Item);
         }
+
         MarkAsDirty();
     }
 
     public CompositeWidget Render()
     {
+        SetTableStyle();
+
         return new CompositeWidget(
             new ClearWidget(' ', new Style(decoration: Decoration.Bold)),
             new PaddingWidget(new Padding(1, 0, 2, 0), this),
@@ -116,9 +129,25 @@ public sealed class FileTableWidget<T> : JustInTimeWidget
                 .Length(_table.Rows.Count)
                 .ViewportLength(1)
                 .Style(Color.Gray)
-                .ThumbStyle(Color.Green)
+                .ThumbStyle(IsFocused ? Color.Green : Color.Gray)
                 .BeginSymbol('\\')
                 .EndSymbol('/')
         );
+    }
+
+    public bool IsFocused
+    {
+        get;
+        set
+        {
+            field = value;
+            SetTableStyle();
+            MarkAsDirty();
+        }
+    } = true;
+
+    public void RegisterKeyBinds(KeymapHelper helper)
+    {
+        helper.AddMaps(KeyMap);
     }
 }

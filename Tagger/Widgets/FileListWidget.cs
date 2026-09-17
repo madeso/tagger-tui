@@ -3,7 +3,7 @@ using Spectre.Console;
 using Padding = Spectre.Tui.Padding;
 using Text = Spectre.Tui.Text;
 
-namespace Tagger;
+namespace Tagger.Widgets;
 
 public sealed class FileItem(FileWithData file) : IListWidgetItem
 {

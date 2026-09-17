@@ -1,41 +1,20 @@
 ﻿using Spectre.Console;
 using Spectre.Tui;
 using Spectre.Tui.App;
-using System.Security.Cryptography.X509Certificates;
-using static System.Net.WebRequestMethods;
 using Justify = Spectre.Tui.Justify;
-using Layout = Spectre.Tui.Layout;
 using Paragraph = Spectre.Tui.Paragraph;
 using Size = Spectre.Tui.Size;
 
 namespace Tagger;
 
-public static class SpectreExtensions
+internal interface IForwardWidgetEvent
 {
-    public static Rectangle FindArea(this Layout root, RenderContext context, Layout target)
-    {
-        return root.GetArea(context, target.Name ?? "");
-    }
-
-    public static Rectangle RenderFrame(RenderContext context, Layout root, Layout target)
-    {
-        var middle = root.FindArea(context, target);
-        context.Render(new BoxWidget(Color.Red).Border(Border.Plain), middle);
-        context.Render(new ClearWidget(' ', Color.Gray), middle.Inflate(-1, -1));
-
-        // Active tab content
-        return middle.Inflate(new Size(-10, -4));
-    }
-
-    public static BoxWidget Screen(string title, IWidget child)
-    {
-        return new BoxWidget()
-            .Style(Color.Green)
-            .Border(Border.Plain)
-            .TitlePadding(1)
-            .MarkupTitle($"[yellow]{title}[/]")
-            .Inner(child);
-    }
+    bool IsForwardable(KeyBinding binding);
+    void Handle(KeyMessage key);
+}
+public interface IKeyBindable
+{
+    void RegisterKeyBinds(KeymapHelper helper);
 }
 
 
@@ -44,20 +23,20 @@ public static class SpectreStrings
     public const string CheckMark = "✓";
 }
 
-internal class KeymapHelper : IKeyMap
+public class KeymapHelper : IKeyMap
 {
     private List<KeyBinding> Items { get; } = new();
     public IEnumerable<KeyBinding> Help()
     {
         return Items;
     }
-
-    public KeymapHelper Add(params KeyBinding[] bind)
+    public KeymapHelper AddBinds(IEnumerable<KeyBinding> bind)
     {
         Items.AddRange(bind);
         return this;
     }
-    public KeymapHelper Add(params IKeyMap[] bind)
+
+    public KeymapHelper AddMaps(params IKeyMap[] bind)
     {
         foreach (var b in bind)
         {
@@ -65,9 +44,14 @@ internal class KeymapHelper : IKeyMap
         }
         return this;
     }
-    public KeymapHelper Add(IEnumerable<KeyBinding> bind)
+
+    public KeymapHelper Add(params IKeyBindable[] widgets)
     {
-        Items.AddRange(bind);
+        foreach (var wid in widgets)
+        {
+            wid.RegisterKeyBinds(this);
+        }
+
         return this;
     }
 }
@@ -82,13 +66,7 @@ internal class SingleAction(KeyBinding key, Action<ApplicationContext> click)
     }
 }
 
-internal interface IForwardWidgetEvent
-{
-    bool IsForwardable(KeyBinding binding);
-    void Handle(KeyMessage key);
-}
-
-internal class KeyActions
+internal class KeyActions : IKeyBindable
 {
     private readonly List<SingleAction> _binds = new();
 
@@ -103,7 +81,10 @@ internal class KeyActions
         return _binds.FirstOrDefault(x => x.Key.Matches(key));
     }
 
-    public IEnumerable<KeyBinding> KeyBinds() => _binds.Select(x => x.Key);
+    void IKeyBindable.RegisterKeyBinds(KeymapHelper helper)
+    {
+        helper.AddBinds(_binds.Select(x => x.Key));
+    }
 
     public void HandleMessageGeneric(ApplicationContext context, ApplicationMessage message, IForwardWidgetEvent widget)
     {
@@ -129,34 +110,28 @@ internal class KeyActions
 
 internal static class KeyActionsForward
 {
-    private class ForwardTextBox(TextBoxWidget widget) : IForwardWidgetEvent
+    public static void HandleMessage(this KeyActions k, ApplicationContext context, ApplicationMessage message, IForwardWidgetEvent widget)
     {
-        public bool IsForwardable(KeyBinding binding) =>
-            binding.Keys.Any(keyPress =>
-                keyPress.Key switch
-                {
-                    Key.Character => true,
-                    Key.Backspace => true,
-                    Key.Space => true,
-                    _ => false
-                });
-
-        public void Handle(KeyMessage key) => widget.KeyMap.HandleKey(key);
-    }
-    public static void HandleMessage(this KeyActions k, ApplicationContext context, ApplicationMessage message, TextBoxWidget text)
-    {
-        k.HandleMessageGeneric(context, message, new ForwardTextBox(text));
+        k.HandleMessageGeneric(context, message, widget);
     }
 
-    private class ForwardFileTable<T>(FileTableWidget<T> widget) : IForwardWidgetEvent where T : class
+    public static void HandleMessage(this KeyActions k, ApplicationContext context, ApplicationMessage message, FocusRing ring)
     {
-        public bool IsForwardable(KeyBinding binding) => false;
-        public void Handle(KeyMessage key) => widget.HandleKey(key);
-    }
-    public static void HandleMessage<T>(this KeyActions k, ApplicationContext context, ApplicationMessage message,
-        FileTableWidget<T> widget) where T : class
-    {
-        k.HandleMessageGeneric(context, message, new ForwardFileTable<T>(widget));
+        if (ring.HandleInput(message))
+        {
+            return;
+        }
+
+        var focus = ring.Focused;
+
+        if (focus is IForwardWidgetEvent forward)
+        {
+            k.HandleMessage(context, message, forward);
+        }
+        else
+        {
+            throw new ArgumentException($"Unabled type {focus}");
+        }
     }
 }
 
@@ -373,23 +348,25 @@ internal enum Clear
 
 internal static class RectCutTui
 {
-    public static void Render(this RectCut r, IWidget widget)
+    public static void Draw(this RectCut r, IWidget widget)
     {
         r.Context.Render(widget, r.Rect);
     }
 
-    public static void Render(this RectCut r, string title, IWidget widget)
+    public static void Draw(this RectCut r, string title, IWidget widget)
     {
         var c = r.Clone();
 
-        c.Render(new BoxWidget(Color.Red).Border(Border.Plain).TitlePadding(1).MarkupTitle($"[yellow]{title}[/]"));
+        var isFocused = widget is not IFocusable focus || focus.IsFocused;
+
+        c.Draw(new BoxWidget(isFocused ? Color.Red : Color.Gray).Border(Border.Plain).TitlePadding(1).MarkupTitle(isFocused ? $"[yellow]{title}[/]" : title));
         c.Inset(1);
-        c.Render(widget);
+        c.Draw(widget);
     }
 
     public static RectCut DrawClear(this RectCut r)
     {
-        r.Render(new ClearWidget(' ', Color.Gray));
+        r.Draw(new ClearWidget(' ', Color.Gray));
         return r;
     }
 
@@ -402,7 +379,7 @@ internal static class RectCutTui
         {
             bottom.DrawClear();
         }
-        bottom.Render(new HelpWidget(helper));
+        bottom.Draw(new HelpWidget(helper));
         return r;
     }
 
@@ -413,7 +390,7 @@ internal static class RectCutTui
         {
             r.DrawClear();
         }
-        r.Render(new BoxWidget(Color.Red).Border(Border.Plain).TitlePadding(1).MarkupTitle($"[yellow]{title}[/]"));
+        r.Draw(new BoxWidget(Color.Red).Border(Border.Plain).TitlePadding(1).MarkupTitle($"[yellow]{title}[/]"));
         r.Inset(2, 2);
         return r;
     }

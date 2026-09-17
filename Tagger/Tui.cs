@@ -1,9 +1,7 @@
 ﻿using Spectre.Tui;
 using Spectre.Tui.App;
 using System.Collections.Immutable;
-using Justify = Spectre.Tui.Justify;
-using Paragraph = Spectre.Tui.Paragraph;
-using Size = Spectre.Tui.Size;
+using Tagger.Widgets;
 using TableColumn = Spectre.Tui.TableColumn;
 using Text = Spectre.Tui.Text;
 
@@ -12,7 +10,7 @@ namespace Tagger;
 public class MainScreen : Screen
 {
     private readonly KeyActions _actions;
-    private readonly FileTableWidget<FileWithData> _files;
+    private readonly Widgets.TableWidget<FileWithData> _files;
 
     public MainScreen(IEnumerable<FileWithData> data)
     {
@@ -23,9 +21,9 @@ public class MainScreen : Screen
             .Create();
 
         _actions = new KeyActions()
-            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { _files.WithSelected(s => s.Toggle());})
-            .Bind(KeyBinding.For('a').WithHelp("Select all"), (_) => { _files.WithAll(s => s.IsSelected = true); })
-            .Bind(KeyBinding.For('n').WithHelp("Select none"), (_) => { _files.WithAll(s => s.IsSelected = false); })
+            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), _ => { _files.WithSelected(s => s.Toggle());})
+            .Bind(KeyBinding.For('a').WithHelp("Select all"), _ => { _files.WithAll(s => s.IsSelected = true); })
+            .Bind(KeyBinding.For('n').WithHelp("Select none"), _ => { _files.WithAll(s => s.IsSelected = false); })
             .Bind(KeyBinding.For('x').WithHelp("Extract selected"), ctx =>
             {
                 var selectedItems = _files.Items.Where(s => s.IsSelected).ToImmutableArray();
@@ -51,20 +49,22 @@ public class MainScreen : Screen
         var r = RectCut.Begin(context);
 
         r.DrawClear();
-        r.DrawKeymap(k => k.Add(_files.KeyMap).Add(_actions.KeyBinds()));
+        r.DrawKeymap(k => k.Add(_files, _actions));
         r.DrawTitle("Items");
-        r.Render(_files);
+        r.Draw(_files.Render());
     }
 }
 
 public class ExtractScreen : Screen
 {
     private readonly KeyActions _actions;
-    private readonly TextBoxWidget _filter = new TextBoxWidget().AsSingleLine().Placeholder("filter");
+    private readonly TextWidget _filter = new TextWidget(new TextBoxWidget().AsSingleLine().Placeholder("filter"));
 
-    private readonly FileTableWidget<FileWithData> _files;
+    private readonly Widgets.TableWidget<FileWithData> _files;
 
     private bool IsFullscreen { get; set; } = false;
+
+    private readonly FocusRing _focus;
 
     public ExtractScreen(IEnumerable<FileWithData> data)
     {
@@ -72,6 +72,8 @@ public class ExtractScreen : Screen
             .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? SpectreStrings.CheckMark : ""))
             .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path))
             .Create();
+
+        _focus = new FocusRing(_filter, _files);
 
         _actions = new KeyActions()
             .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), _ => { _files.WithSelected(s => s.Toggle()); })
@@ -86,7 +88,7 @@ public class ExtractScreen : Screen
 
     public override void OnMessage(ApplicationContext context, ApplicationMessage message)
     {
-        _actions.HandleMessage(context, message, _filter);
+        _actions.HandleMessage(context, message, _focus);
     }
 
     public override bool IsTransparent => !IsFullscreen;
@@ -101,7 +103,7 @@ public class ExtractScreen : Screen
             r.DrawClear();
         }
 
-        r.DrawKeymap(k => k.Add(_files.KeyMap).Add(_actions.KeyBinds()), clear);
+        r.DrawKeymap(k => k.Add(_files, _actions), clear);
 
         if (IsFullscreen == false)
         {
@@ -110,7 +112,7 @@ public class ExtractScreen : Screen
 
         r.DrawTitle("Extract", clear);
 
-        r.CutTop(3).Render("Filter", _filter);
-        r.Render("Result", _files);
+        r.CutTop(3).Draw("Filter", _filter);
+        r.Draw("Result", _files);
     }
 }
