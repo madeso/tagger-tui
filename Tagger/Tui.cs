@@ -1,9 +1,7 @@
-﻿using System.Collections.Immutable;
-using Spectre.Console;
-using Spectre.Tui;
+﻿using Spectre.Tui;
 using Spectre.Tui.App;
+using System.Collections.Immutable;
 using Justify = Spectre.Tui.Justify;
-using Layout = Spectre.Tui.Layout;
 using Paragraph = Spectre.Tui.Paragraph;
 using Size = Spectre.Tui.Size;
 using TableColumn = Spectre.Tui.TableColumn;
@@ -11,112 +9,16 @@ using Text = Spectre.Tui.Text;
 
 namespace Tagger;
 
-
-public static class Strings
-{
-    public const string CheckMark = "✓";
-}
-
-public static class SpectreExtension
-{
-    public static Rectangle FindArea(this Layout root, RenderContext context, Layout target)
-    {
-        return root.GetArea(context, target.Name ?? "");
-    }
-
-    public static Rectangle RenderFrame(RenderContext context, Layout root, Layout target)
-    {
-        var middle = root.FindArea(context, target);
-        context.Render(new BoxWidget(Color.Red).Border(Border.Plain), middle);
-        context.Render(new ClearWidget(' ', Color.Gray), middle.Inflate(-1, -1));
-
-        // Active tab content
-        return middle.Inflate(new Size(-10, -4));
-    }
-
-    public static BoxWidget Screen(string title, IWidget child)
-    {
-        return new BoxWidget()
-            .Style(Color.Green)
-            .Border(Border.Plain)
-            .TitlePadding(1)
-            .MarkupTitle($"[yellow]{title}[/]")
-            .Inner(child);
-    }
-}
-
-internal class KeymapHelper : IKeyMap
-{
-    private List<KeyBinding> Items { get; }= new();
-    public IEnumerable<KeyBinding> Help()
-    {
-        return Items;
-    }
-
-    public KeymapHelper Add(params KeyBinding[] bind)
-    {
-        Items.AddRange(bind);
-        return this;
-    }
-    public KeymapHelper Add(params IKeyMap[] bind)
-    {
-        foreach(var b in bind)
-        {
-            Items.AddRange(b.Help());
-        }
-        return this;
-    }
-    public KeymapHelper Add(IEnumerable<KeyBinding> bind)
-    {
-        Items.AddRange(bind);
-        return this;
-    }
-}
-
-internal class SingleAction(KeyBinding key, Action<ApplicationContext> click)
-{
-    public KeyBinding Key => key;
-
-    public void Click(ApplicationContext ctx)
-    {
-        click(ctx);
-    }
-}
-
-internal class KeyActions
-{
-    private List<SingleAction> binds = new();
-
-    public KeyActions Bind(KeyBinding key, Action<ApplicationContext> click)
-    {
-        binds.Add(new SingleAction(key, click));
-        return this;
-    }
-
-    public SingleAction? Match(KeyMessage key)
-    {
-        return binds.FirstOrDefault(x => x.Key.Matches(key));
-    }
-
-    public IEnumerable<KeyBinding> KeyBinds() => binds.Select(x => x.Key);
-}
-
 public class MainScreen : Screen
 {
-    private readonly Layout _middle = new Layout("middle");
-    private readonly Layout _bottom = new Layout("bottom").Size(1);
-    private readonly Layout _layout;
     private readonly KeyActions _actions;
-
-    private readonly FileTableWidget<FileWithData> _files; // _files;
+    private readonly FileTableWidget<FileWithData> _files;
 
     public MainScreen(IEnumerable<FileWithData> data)
     {
-        _layout = new Layout("root").SplitRows(_middle, _bottom);
-
         var dat = data.ToList();
         _files = new TableBuilder<FileWithData>(dat)
-            .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? Strings.CheckMark : ""))
+            .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? SpectreStrings.CheckMark : ""))
             .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path))
             .Create();
 
@@ -141,100 +43,74 @@ public class MainScreen : Screen
 
     public override void OnMessage(ApplicationContext context, ApplicationMessage message)
     {
-        if (message is not KeyMessage key) return;
-        var found = _actions.Match(key);
-        if (found != null)
-        {
-            found.Click(context);
-        }
-        else
-        {
-            _files.HandleKey(key);
-        }
+        _actions.HandleMessage(context, message, _files);
     }
 
     public override void Render(RenderContext context)
     {
-        var body = SpectreExtension.RenderFrame(context, _layout, _middle);
+        var r = RectCut.Begin(context);
 
-        context.Render(new HelpWidget(new KeymapHelper().Add(_files.KeyMap).Add(_actions.KeyBinds())), _layout.FindArea(context, _bottom));
-        context.Render(SpectreExtension.Screen("Items", _files.Render()), body);
+        r.DrawClear();
+        r.DrawKeymap(k => k.Add(_files.KeyMap).Add(_actions.KeyBinds()));
+        r.DrawTitle("Items");
+        r.Render(_files);
     }
 }
 
-
 public class ExtractScreen : Screen
 {
-    private readonly Layout _middle = new Layout("middle");
-    private readonly Layout _bottom = new Layout("bottom").Size(1);
-    private readonly Layout _layout;
     private readonly KeyActions _actions;
+    private readonly TextBoxWidget _filter = new TextBoxWidget().AsSingleLine().Placeholder("filter");
 
-    private readonly FileTableWidget<FileWithData> _files; // _files;
+    private readonly FileTableWidget<FileWithData> _files;
+
+    private bool IsFullscreen { get; set; } = false;
 
     public ExtractScreen(IEnumerable<FileWithData> data)
     {
-        _layout = new Layout("root").SplitRows(_middle, _bottom);
-
-        var dat = data.ToList();
-        _files = new TableBuilder<FileWithData>(dat)
-            .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? Strings.CheckMark : ""))
+        _files = new TableBuilder<FileWithData>(data)
+            .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? SpectreStrings.CheckMark : ""))
             .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path))
             .Create();
 
         _actions = new KeyActions()
-            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), (_) => { _files.WithSelected(s => s.Toggle()); })
-            .Bind(KeyBinding.For('a').WithHelp("Select all"), (_) => { _files.WithAll(s => s.IsSelected = true); })
-            .Bind(KeyBinding.For('n').WithHelp("Select none"), (_) => { _files.WithAll(s => s.IsSelected = false); })
+            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), _ => { _files.WithSelected(s => s.Toggle()); })
+            .Bind(KeyBinding.For('a').WithHelp("Select all"), _ => { _files.WithAll(s => s.IsSelected = true); })
+            .Bind(KeyBinding.For('n').WithHelp("Select none"), _ => { _files.WithAll(s => s.IsSelected = false); })
             .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
-            .Bind(KeyBinding.For(Key.Enter).WithHelp("Done"), ctx => ctx.Pop())
+            .Bind(KeyBinding.For('f').WithHelp("Toggle fullscreen"), _ => IsFullscreen = !IsFullscreen)
+            .Bind(KeyBinding.For(Key.Escape).WithHelp("Abort"), ctx => ctx.Pop())
+            .Bind(KeyBinding.For(Key.Enter).WithHelp("Apply"), ctx => ctx.Pop())
             ;
     }
 
     public override void OnMessage(ApplicationContext context, ApplicationMessage message)
     {
-        if (message is not KeyMessage key) return;
-        var found = _actions.Match(key);
-        if (found != null)
-        {
-            found.Click(context);
-        }
-        else
-        {
-            _files.HandleKey(key);
-        }
+        _actions.HandleMessage(context, message, _filter);
     }
+
+    public override bool IsTransparent => !IsFullscreen;
 
     public override void Render(RenderContext context)
     {
-        var body = SpectreExtension.RenderFrame(context, _layout, _middle);
+        var r = RectCut.Begin(context);
 
-        context.Render(new HelpWidget(new KeymapHelper().Add(_files.KeyMap).Add(_actions.KeyBinds())), _layout.FindArea(context, _bottom));
-        context.Render(SpectreExtension.Screen("Extract", _files.Render()), body);
-    }
-}
-
-public class PopUp(string message, string? title = null) : Screen
-{
-    public override bool IsTransparent => true;
-
-    public override void OnMessage(ApplicationContext context, ApplicationMessage appMessage)
-    {
-        if (appMessage is KeyMessage key && key.Key == Key.Escape)
+        var clear = IsFullscreen ? Clear.No : Clear.Yes;
+        if (IsFullscreen)
         {
-            context.Pop();
+            r.DrawClear();
         }
-    }
 
-    public override void Render(RenderContext context)
-    {
-        context.Render(
-            new PopupWidget(new Size(50, 10))
-                .Content(
-                    new BoxWidget()
-                        .Border(Border.Plain)
-                        .Title(title ?? "", TitlePosition.Top, Justify.Center)
-                        .Inner(Paragraph.FromMarkup($"{message}\n\nPress [yellow]ESC[/] to close").Centered().AlignedMiddle())
-                ));
+        r.DrawKeymap(k => k.Add(_files.KeyMap).Add(_actions.KeyBinds()), clear);
+
+        if (IsFullscreen == false)
+        {
+            r.Inset(12);
+        }
+
+        r.DrawTitle("Extract", clear);
+
+        r.CutTop(3).Render("Filter", _filter);
+        r.Render("Result", _files);
     }
 }
