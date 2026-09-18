@@ -7,7 +7,7 @@ public class TextWidget(TextBoxWidget widget) : IForwardWidgetEvent, IFocusable,
 {
     public bool IsForwardable(KeyBinding binding) =>
         binding.Keys.Any(keyPress =>
-            keyPress.Key switch
+            keyPress.Character !=null || keyPress.Key switch
             {
                 Key.Character => true,
                 Key.Backspace => true,

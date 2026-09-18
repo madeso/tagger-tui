@@ -64,7 +64,7 @@ public class ExtractScreen : Screen
 
     private bool IsFullscreen { get; set; } = false;
 
-    private readonly FocusRing _focus;
+    private readonly FocusHelper _focus;
 
     public ExtractScreen(IEnumerable<FileWithData> data)
     {
@@ -73,7 +73,7 @@ public class ExtractScreen : Screen
             .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path))
             .Create();
 
-        _focus = new FocusRing(_filter, _files);
+        _focus = new FocusHelper(_filter, _files);
 
         _actions = new KeyActions()
             .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), _ => { _files.WithSelected(s => s.Toggle()); })
@@ -103,11 +103,11 @@ public class ExtractScreen : Screen
             r.DrawClear();
         }
 
-        r.DrawKeymap(k => k.Add(_files, _actions), clear);
+        r.DrawKeymap(k => k.Add(_focus, _actions), clear);
 
         if (IsFullscreen == false)
         {
-            r.Inset(12);
+            r.Inset(4, 4);
         }
 
         r.DrawTitle("Extract", clear);

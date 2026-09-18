@@ -7,7 +7,7 @@ using Size = Spectre.Tui.Size;
 
 namespace Tagger;
 
-internal interface IForwardWidgetEvent
+public interface IForwardWidgetEvent
 {
     bool IsForwardable(KeyBinding binding);
     void Handle(KeyMessage key);
@@ -25,7 +25,8 @@ public static class SpectreStrings
 
 public class KeymapHelper : IKeyMap
 {
-    private List<KeyBinding> Items { get; } = new();
+    private List<KeyBinding> Items { get; } = [];
+
     public IEnumerable<KeyBinding> Help()
     {
         return Items;
@@ -56,7 +57,7 @@ public class KeymapHelper : IKeyMap
     }
 }
 
-internal class SingleAction(KeyBinding key, Action<ApplicationContext> click)
+public class SingleAction(KeyBinding key, Action<ApplicationContext> click)
 {
     public KeyBinding Key => key;
 
@@ -66,7 +67,7 @@ internal class SingleAction(KeyBinding key, Action<ApplicationContext> click)
     }
 }
 
-internal class KeyActions : IKeyBindable
+public class KeyActions : IKeyBindable
 {
     private readonly List<SingleAction> _binds = new();
 
@@ -108,21 +109,18 @@ internal class KeyActions : IKeyBindable
     }
 }
 
-internal static class KeyActionsForward
+public class FocusHelper(params IFocusable[] items) : IKeyBindable
 {
-    public static void HandleMessage(this KeyActions k, ApplicationContext context, ApplicationMessage message, IForwardWidgetEvent widget)
+    private readonly FocusRing _ring = new(items);
+
+    public bool HandleInput(ApplicationMessage message)
     {
-        k.HandleMessageGeneric(context, message, widget);
+        return _ring.HandleInput(message);
     }
 
-    public static void HandleMessage(this KeyActions k, ApplicationContext context, ApplicationMessage message, FocusRing ring)
+    public void OnMessage(KeyActions k, ApplicationContext context, ApplicationMessage message)
     {
-        if (ring.HandleInput(message))
-        {
-            return;
-        }
-
-        var focus = ring.Focused;
+        var focus = _ring.Focused;
 
         if (focus is IForwardWidgetEvent forward)
         {
@@ -132,6 +130,37 @@ internal static class KeyActionsForward
         {
             throw new ArgumentException($"Unabled type {focus}");
         }
+    }
+
+    public void RegisterKeyBinds(KeymapHelper helper)
+    {
+        var focus = _ring.Focused;
+        if (focus is IKeyBindable forward)
+        {
+            forward.RegisterKeyBinds(helper);
+        }
+        else
+        {
+            throw new ArgumentException($"Unabled type {focus}");
+        }
+    }
+}
+
+internal static class KeyActionsForward
+{
+    public static void HandleMessage(this KeyActions k, ApplicationContext context, ApplicationMessage message, IForwardWidgetEvent widget)
+    {
+        k.HandleMessageGeneric(context, message, widget);
+    }
+
+    public static void HandleMessage(this KeyActions k, ApplicationContext context, ApplicationMessage message, FocusHelper ring)
+    {
+        if (ring.HandleInput(message))
+        {
+            return;
+        }
+
+        ring.OnMessage(k, context, message);
     }
 }
 
@@ -366,12 +395,14 @@ internal static class RectCutTui
 
     public static RectCut DrawClear(this RectCut r)
     {
-        r.Draw(new ClearWidget(' ', Color.Gray));
+        r.Draw(new ClearWidget());
         return r;
     }
 
     public static RectCut DrawKeymap(this RectCut r, Action<KeymapHelper> map, Clear clear = Clear.No)
     {
+        // todo(Gustav): this might draw keys that are blocked by the current widget
+
         var helper = new KeymapHelper();
         map(helper);
         var bottom = r.CutBottom(1);
