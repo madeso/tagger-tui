@@ -12,12 +12,12 @@ public class MainScreen : Screen
     private readonly KeyActions _actions;
     private readonly Widgets.TableWidget<FileWithData> _files;
 
-    public MainScreen(IEnumerable<FileWithData> data)
+    public MainScreen(Store store)
     {
-        var dat = data.ToList();
-        _files = new TableBuilder<FileWithData>(dat)
+        var common = store.CalculateCommonFolder();
+        _files = new TableBuilder<FileWithData>(store.Files)
             .AddColumn(() => new TableColumn("Sel").RightAligned(), x => Text.FromString(x.IsSelected ? SpectreStrings.CheckMark : ""))
-            .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path))
+            .AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(SolveCommon(common, x.Path)))
             .Create();
 
         _actions = new KeyActions()
@@ -37,6 +37,12 @@ public class MainScreen : Screen
             .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
             .Bind(KeyBinding.For(Key.Escape).WithHelp("Quit"), ctx => ctx.Pop())
             ;
+    }
+
+    private static string SolveCommon(string? common, string path)
+    {
+        if (common == null) return path;
+        return path.Remove(0, common.Length + 1); // +1 includes directory separator
     }
 
     public override void OnMessage(ApplicationContext context, ApplicationMessage message)

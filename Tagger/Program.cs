@@ -140,7 +140,7 @@ internal class EditCommand : AsyncCommand<EditCommand.Settings>
         if (store == null) return -1;
 
         await Application.Create()
-            .RunAsync(new MainScreen(store.Files));
+            .RunAsync(new MainScreen(store));
         return 0;
     }
 }
