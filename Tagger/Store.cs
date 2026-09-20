@@ -95,9 +95,9 @@ public class Store
             var diParent = new DirectoryInfo(parent);
             var fsiChildren = diParent.GetFileSystemInfos(name);
             var fsiChild = fsiChildren.First();
-            return fsiChild.FullName; // coming from GetFileSystemImfos() this has the correct case
+            return fsiChild.FullName; // coming from GetFileSystemInfos() this has the correct case
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return path;
         }

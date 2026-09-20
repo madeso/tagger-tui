@@ -28,4 +28,10 @@ public class TextWidget(TextBoxWidget widget) : IForwardWidgetEvent, IFocusable,
     {
         helper.AddMaps(widget.KeyMap);
     }
+
+    public string Text
+    {
+        get => widget.Text;
+        set => widget.Text = value;
+    }
 }
