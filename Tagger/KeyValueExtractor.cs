@@ -11,6 +11,7 @@ public class KeyValueExtractor
 
     public static (KeyValueExtractor, string?) Compile(string pattern)
     {
+        var err = new KeyValueExtractor();
         var p = new KeyValueExtractor();
 
         const char k = '%';
@@ -31,7 +32,10 @@ public class KeyValueExtractor
                     }
                     else
                     {
-                        p.AddArgument(t);
+                        if (p.Add(Type.Argument, t))
+                        {
+                            return (err, "Duplicate arguments without text");
+                        }
                     }
                 }
                 else
@@ -41,7 +45,10 @@ public class KeyValueExtractor
                     }
                     else
                     {
-                        p.AddText(t);
+                        if (p.Add(Type.Text, t))
+                        {
+                            return (err, "Internal error: Duplicate text without argument");
+                        }
                     }
                 }
                 special = !special;
@@ -59,7 +66,10 @@ public class KeyValueExtractor
         var st = mem.ToString();
         if (false == string.IsNullOrEmpty(st))
         {
-            p.AddText(st);
+            if (p.Add(Type.Text, st))
+            {
+                return (err, "Bug?: Duplicate text without argument");
+            }
         }
 
 
@@ -68,40 +78,49 @@ public class KeyValueExtractor
 
     private int _numberOfDirectorySeparators = 0;
 
-    private struct Match
+    private enum Type
     {
-        public bool IsText;
-        public string Data;
-
-        public override string ToString() => IsText ? Data.Replace("%", "%%") : "%" + Data + "%";
+        Text, Argument
     }
 
-    public IEnumerable<string> Patterns => _matchers.Where(m => m.IsText == false).Select(m => m.Data);
+    private struct Match
+    {
+        public Type Type;
+        public string Data;
+
+        public override string ToString() => Type == Type.Text ? Data.Replace("%", "%%") : "%" + Data + "%";
+    }
+
+    public IEnumerable<string> Patterns => _matchers.Where(m => m.Type == Type.Argument).Select(m => m.Data);
 
     private readonly List<Match> _matchers = [];
 
-    private void AddText(string t)
-    {
-        var m = new Match
-        {
-            IsText = true,
-            Data = t
-        };
-
-        _matchers.Add(m);
-        _numberOfDirectorySeparators += CountDirectorySeparators(t);
-    }
-
     private static int CountDirectorySeparators(string pattern) => pattern.Count(c => c == Path.DirectorySeparatorChar);
 
-    private void AddArgument(string t)
+    // true = error
+    private bool Add(Type type, string data)
     {
+        if (_matchers.Count > 0)
+        {
+            if (_matchers.Last().Type == type)
+            {
+                // can't add 2 items of the same type
+                return true;
+            }
+        }
         var m = new Match
         {
-            IsText = false,
-            Data = t
+            Type = type,
+            Data = data
         };
         _matchers.Add(m);
+
+        if (type == Type.Text)
+        {
+            _numberOfDirectorySeparators += CountDirectorySeparators(data);
+        }
+
+        return false;
     }
 
     private string GetText(FileInfo fi)
@@ -143,7 +162,7 @@ public class KeyValueExtractor
 
         foreach (var m in _matchers)
         {
-            if (m.IsText)
+            if (m.Type == Type.Text)
             {
                 var end = t.IndexOf(m.Data, start, StringComparison.Ordinal);
                 if (end == -1)
@@ -213,7 +232,7 @@ public class KeyValueExtractor
 
         foreach (var m in _matchers)
         {
-            if (m.IsText) continue;
+            if (m.Type == Type.Text) continue;
             var arg = m.Data.ToLower();
             var c = 0;
             if (counts.TryGetValue(arg, out var count))
@@ -231,5 +250,5 @@ public class KeyValueExtractor
         return cx;
     }
 
-    public int CountInText(Func<string, int> calculator) => _matchers.Where(m => m.IsText).Sum(m => calculator(m.Data));
+    public int CountInText(Func<string, int> calculator) => _matchers.Where(m => m.Type == Type.Text).Sum(m => calculator(m.Data));
 }

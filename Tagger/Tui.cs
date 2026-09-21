@@ -86,7 +86,7 @@ public class ExtractScreen : Screen
     private readonly ImmutableArray<ExtractedFile> _files;
 
     private Widgets.TableWidget<ExtractedFile> _grid;
-    private bool IsFullscreen { get; set; } = false;
+    private bool IsFullscreen { get; set; } = true;
     private readonly FocusHelper _focus;
 
     public ExtractScreen(IEnumerable<FileWithData> data)
