@@ -2,6 +2,7 @@
 using Spectre.Tui;
 using Spectre.Tui.App;
 using System.Collections.Immutable;
+using System.Security.Principal;
 using Padding = Spectre.Tui.Padding;
 using TableColumn = Spectre.Tui.TableColumn;
 using TableRow = Spectre.Tui.TableRow;
@@ -40,7 +41,8 @@ public class TableBuilder<T>(IEnumerable<T> items) where T : class
     public TableWidget<T> Create()
     {
         var cols = _columns.ToImmutableArray();
-        return new TableWidget<T>(items.Select(x => new Row<T>(x, cols)).ToList(), cols);
+        var ret = new TableWidget<T>(items.Select(x => new Row<T>(x, cols)).ToList(), cols);
+        return ret;
     }
 }
 
@@ -72,6 +74,14 @@ public sealed class TableWidget<T> : JustInTimeWidget, IFocusable, IForwardWidge
 
         SetTableStyle();
     }
+
+    public int? SelectedIndex
+    {
+        get => _table.SelectedIndex;
+        set => _table.SelectedIndex = value;
+    }
+
+    public T? SelectedItem => _table.SelectedItem?.Item;
 
     private void SetTableStyle()
     {

@@ -21,12 +21,24 @@ public class FileWithData
     }
 }
 
+public class ColumnDef
+{
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = "";
+
+    [JsonPropertyName("pattern")]
+    public string Pattern { get; set; } = "";
+}
+
 public class Store
 {
     private const string FileName = ".tagger.json";
 
     [JsonPropertyName("files")]
     public List<FileWithData> Files { get; set; } = [];
+
+    [JsonPropertyName("column")]
+    public List<ColumnDef> Columns { get; set; } = [];
 
     [JsonIgnore]
     public string FilePath { get; set; } = Path.Join(Environment.CurrentDirectory, FileName);
