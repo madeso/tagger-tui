@@ -255,13 +255,36 @@ public class ColumnScreen : Screen
                         _grid = BuildGrid(_grid);
                     }));
             })
-            .Bind(KeyBinding.For('x').WithHelp("Delete column"), ctx => ctx.Push(new PopUp("todo")))
+            .Bind(KeyBinding.For('x').WithHelp("Delete column"), ctx =>
+            {
+                var selected = _grid.SelectedIndex;
+                if (selected.HasValue == false)
+                {
+                    ctx.Push(new PopUp("Nothing is selected"));
+                    return;
+                }
+                _store.Columns.RemoveAt(selected.Value);
+                _grid.SelectedIndex = CalculateSelectedIndex(selected.Value, _store);
+                _grid = BuildGrid(_grid);
+            })
             .Bind(KeyBinding.For(Key.Enter, Key.Escape).WithHelp("Done"), ctx =>
             {
                 ctx.Pop();
                 onDone();
             })
             ;
+    }
+
+    private int? CalculateSelectedIndex(int selected, Store store)
+    {
+        if (store.Columns.Count == 0) return null;
+
+        if (selected == store.Columns.Count && selected > 0)
+        {
+            return selected - 1;
+        }
+
+        return selected;
     }
 
     private Widgets.TableWidget<ColumnDef> BuildGrid(Widgets.TableWidget<ColumnDef>? previousGrid)
@@ -301,13 +324,25 @@ public class EditColumnScreen : Screen
     private readonly KeyActions _actions;
     private readonly TextWidget _label = new TextWidget(new TextBoxWidget().AsSingleLine().Placeholder("label"));
     private readonly TextWidget _pattern = new TextWidget(new TextBoxWidget().AsSingleLine().Placeholder("pattern"));
-    
+    private string _previousLabel;
+    private string _previousPattern;
+    private bool _patternDirty = false;
+    private readonly ColumnDef _column;
+
+
     private bool IsFullscreen { get; set; } = true;
     private readonly FocusHelper _focus;
 
     public EditColumnScreen(ColumnDef column, Action esc, Action ok)
     {
         _focus = new FocusHelper(_label, _pattern);
+        _column = column;
+
+        _label.Text = column.Label;
+        _pattern.Text = column.Pattern;
+
+        _previousLabel = _label.Text;
+        _previousPattern = _pattern.Text;
 
         _actions = new KeyActions()
             .Bind(KeyBinding.For('f').WithHelp("Toggle fullscreen"), _ => IsFullscreen = !IsFullscreen)
@@ -336,12 +371,39 @@ public class EditColumnScreen : Screen
     {
         _actions.HandleMessage(context, message, _focus);
 
-        FilterHasChanged();
+        CheckLabelChange();
+        CheckPatternChange();
     }
 
-    private void FilterHasChanged()
+    private void CheckLabelChange()
     {
-        // todo(Gustav): set pattern from name
+        // has label changed?
+        if (_label.Text == _previousLabel) return;
+        _previousLabel = _label.Text;
+
+        // we should only change pattern for new columns
+        if (string.IsNullOrEmpty(_column.Label) && string.IsNullOrEmpty(_column.Label))
+        {
+            // new colum
+        }
+        else
+        {
+            // existing column, don't autogenerate
+            return;
+        }
+
+        // don't update pattern if it has been changed
+        if (_patternDirty) return;
+
+        _pattern.Text = _label.Text.ToLowerInvariant();
+        _previousPattern = _pattern.Text;
+    }
+
+    private void CheckPatternChange()
+    {
+        if (_pattern.Text == _previousPattern) return;
+        _previousPattern = _pattern.Text;
+        _patternDirty = true;
     }
 
     public override bool IsTransparent => !IsFullscreen;
