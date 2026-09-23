@@ -56,12 +56,19 @@ public class MainScreen : Screen
         foreach (var src in _store.Columns)
         {
             // todo(Gustav): improve pattern
-            builder.AddColumn(() => new TableColumn(src.Label), x => Text.FromString(x.Properties.GetValueOrDefault(src.Pattern) ?? ""));
+            var (pattern, parse) = Pattern.Compile(src.Pattern);
+            builder.AddColumn(() => new TableColumn(src.Label), x => Text.FromString(EvalPattern(pattern, x.Properties)));
         }
 
         var newGrid = builder.Create();
         newGrid.SelectedIndex = oldGrid?.SelectedIndex ?? 0;
         return newGrid;
+
+        static string EvalPattern(Pattern pattern, Dictionary<string, string> props)
+        {
+            var (eval, err) = pattern.Eval(Pattern.DefaultFunctions(), props);
+            return eval;
+        }
     }
 
     private static string SolveCommon(string? common, string path)
@@ -328,6 +335,7 @@ public class EditColumnScreen : Screen
     private string _previousPattern;
     private bool _patternDirty = false;
     private readonly ColumnDef _column;
+    private string? _patternError = null;
 
 
     private bool IsFullscreen { get; set; } = true;
@@ -395,8 +403,11 @@ public class EditColumnScreen : Screen
         // don't update pattern if it has been changed
         if (_patternDirty) return;
 
-        _pattern.Text = _label.Text.ToLowerInvariant();
+        var lower = _label.Text.ToLowerInvariant();
+        _pattern.Text = $"%{lower}%";
         _previousPattern = _pattern.Text;
+
+        UpdatePatternInspection();
     }
 
     private void CheckPatternChange()
@@ -404,6 +415,16 @@ public class EditColumnScreen : Screen
         if (_pattern.Text == _previousPattern) return;
         _previousPattern = _pattern.Text;
         _patternDirty = true;
+
+        UpdatePatternInspection();
+    }
+
+    private void UpdatePatternInspection()
+    {
+        var (pattern, err) = Pattern.Compile(_pattern.Text);
+        _patternError = err.HasErrors() ? string.Join("\n", err.Errors) : null;
+
+        // todo(Gustav): update grid with pattern result
     }
 
     public override bool IsTransparent => !IsFullscreen;
@@ -429,5 +450,9 @@ public class EditColumnScreen : Screen
 
         r.CutTop(3).Draw("Label", _label);
         r.CutTop(3).Draw("Pattern", _pattern);
+        if (_patternError != null)
+        {
+            r.CutTop(1).Draw(Paragraph.FromMarkup($"[red]Pattern error[/]: {_patternError}"));
+        }
     }
 }

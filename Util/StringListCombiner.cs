@@ -29,10 +29,6 @@ namespace Util
 		{
 			return combine(new List<string>(input));
 		}
-		public string combineFromArray(params object[] input)
-		{
-			return combineFromEnumerable(CSharp.Convert<string, object>(input, x => x.ToString()));
-		}
 
 		public string combine(List<string> strings)
 		{

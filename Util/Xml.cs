@@ -288,7 +288,7 @@ namespace Util
 				string res = GetTextOfSubElementOrNull(node, p);
 				if (res != null) return res;
 			}
-			throw new Exception("node is missing " +  new StringListCombiner(", ", " or").combineFromArray(ps) + ", a requested sub node");
+			throw new Exception("node is missing " +  new StringListCombiner(", ", " or").combineFromEnumerable(ps) + ", a requested sub node");
 		}
 
 		public static string GetFirstText(this XmlNode node)
