@@ -14,8 +14,4 @@
     <PackageReference Include="Spectre.Tui.App" Version="0.14.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Util\Util.csproj" />
-  </ItemGroup>
-
 </Project>

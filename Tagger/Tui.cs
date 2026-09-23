@@ -2,8 +2,6 @@
 using Spectre.Tui.App;
 using System.Collections.Immutable;
 using Tagger.Widgets;
-using Util;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 using TableColumn = Spectre.Tui.TableColumn;
 using Text = Spectre.Tui.Text;
 
