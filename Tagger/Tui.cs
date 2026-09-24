@@ -237,7 +237,7 @@ public class PropertiesScreen : Screen
 public class ExtractScreen : Screen
 {
     private readonly KeyActions _actions;
-    private readonly TextWidget _filter = new TextWidget(new TextBoxWidget().AsSingleLine().Placeholder("filter"));
+    private readonly TextWidget _filter = new TextWidget(new TextBoxWidget().AsSingleLine());
     private string _previousFilter = "";
     private string? _parserError = null;
     private readonly ImmutableArray<ExtractedFile> _files;
@@ -474,8 +474,8 @@ public class ColumnScreen : Screen
 public class EditColumnScreen : Screen
 {
     private readonly KeyActions _actions;
-    private readonly TextWidget _label = new TextWidget(new TextBoxWidget().AsSingleLine().Placeholder("label"));
-    private readonly TextWidget _pattern = new TextWidget(new TextBoxWidget().AsSingleLine().Placeholder("pattern"));
+    private readonly TextWidget _label = new TextWidget(new TextBoxWidget().AsSingleLine());
+    private readonly TextWidget _pattern = new TextWidget(new TextBoxWidget().AsSingleLine());
     private string _previousLabel;
     private string _previousPattern;
     private bool _patternDirty = false;
