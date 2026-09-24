@@ -35,12 +35,21 @@ public class MainScreen : Screen
                 _files.WithAll(s => s.IsSelected = false);
                 _store.Save();
             })
+            .Bind(KeyBinding.For('d').WithHelp("Select props"), ctx =>
+            {
+                var allKeys = _files.AllItems.SelectMany(x => x.Properties.Keys).ToHashSet();
+                ctx.RunSelect(allKeys, x => x, key =>
+                {
+                    ctx.RunPopup($"You selected {key}");
+                }, null, "Select key");
+                _store.Save();
+            })
             .Bind(KeyBinding.For('x').WithHelp("Extract selected"), ctx =>
             {
                 var selectedItems = _files.Items.Where(s => s.IsSelected).ToImmutableArray();
                 if (selectedItems.Length == 0)
                 {
-                    ctx.Push(new PopUp("Nothing is selected"));
+                    ctx.RunPopup("Nothing is selected");
                     return;
                 }
                 ctx.Push(new ExtractScreen(selectedItems, () =>
@@ -54,7 +63,7 @@ public class MainScreen : Screen
                 var selectedItems = _files.Items.Where(s => s.IsSelected).ToImmutableArray();
                 if (selectedItems.Length == 0)
                 {
-                    ctx.Push(new PopUp("Nothing is selected"));
+                    ctx.RunPopup("Nothing is selected");
                     return;
                 }
                 ctx.Push(new PropertiesScreen(selectedItems, () =>
@@ -170,7 +179,6 @@ public class PropertiesScreen : Screen
         _grid = BuildGrid();
 
         _actions = new KeyActions()
-            .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
             .Bind(KeyBinding.For(Key.Escape).WithHelp("Abort"), ctx => ctx.Pop())
             .Bind(KeyBinding.For(Key.Enter).WithHelp("Apply"), ctx =>
             {
@@ -254,7 +262,6 @@ public class ExtractScreen : Screen
         (_grid, _focus) = BuildGrid(null, null, null);
 
         _actions = new KeyActions()
-            .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
             .Bind(KeyBinding.For('f').WithHelp("Toggle fullscreen"), _ => IsFullscreen = !IsFullscreen)
             .Bind(KeyBinding.For('e').WithHelp("Display errors"), _ =>
             {
@@ -382,7 +389,6 @@ public class ColumnScreen : Screen
         _grid = BuildGrid(null);
 
         _actions = new KeyActions()
-            .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
             .Bind(KeyBinding.For('a').WithHelp("Add column"), ctx =>
             {
                 var add = new ColumnDef();
@@ -398,7 +404,7 @@ public class ColumnScreen : Screen
                 var selected = _grid.SelectedItem;
                 if(selected == null)
                 {
-                    ctx.Push(new PopUp("Nothing is selected"));
+                    ctx.RunPopup("Nothing is selected");
                     return;
                 }
                 ctx.Push(new EditColumnScreen(selected, () => { },
@@ -412,7 +418,7 @@ public class ColumnScreen : Screen
                 var selected = _grid.SelectedIndex;
                 if (selected.HasValue == false)
                 {
-                    ctx.Push(new PopUp("Nothing is selected"));
+                    ctx.RunPopup("Nothing is selected");
                     return;
                 }
                 _store.Columns.RemoveAt(selected.Value);
@@ -508,7 +514,7 @@ public class EditColumnScreen : Screen
             {
                 if (string.IsNullOrEmpty(_label.Text) || string.IsNullOrEmpty(_pattern.Text))
                 {
-                    ctx.Push(new PopUp("Name and pattern can't be empty"));
+                    ctx.RunPopup("Name and pattern can't be empty");
                 }
 
                 column.Label = _label.Text;

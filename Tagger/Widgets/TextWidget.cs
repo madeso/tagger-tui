@@ -5,7 +5,7 @@ namespace Tagger.Widgets;
 
 public class TextWidget(TextBoxWidget widget) : IForwardWidgetEvent, IFocusable, IWidget, IKeyBindable
 {
-    public bool IsForwardable(KeyBinding binding) =>
+    public bool ShouldStealFromAction(KeyBinding binding) =>
         binding.Keys.Any(keyPress =>
             keyPress.Character !=null || keyPress.Key switch
             {

@@ -1,6 +1,8 @@
-﻿using Spectre.Console;
+﻿using System.Collections.Immutable;
+using Spectre.Console;
 using Spectre.Tui;
 using Spectre.Tui.App;
+using Tagger.Widgets;
 using Justify = Spectre.Tui.Justify;
 using Paragraph = Spectre.Tui.Paragraph;
 using Size = Spectre.Tui.Size;
@@ -9,7 +11,7 @@ namespace Tagger;
 
 public interface IForwardWidgetEvent
 {
-    bool IsForwardable(KeyBinding binding);
+    bool ShouldStealFromAction(KeyBinding binding);
     void Handle(KeyMessage key);
 }
 public interface IKeyBindable
@@ -93,7 +95,7 @@ public class KeyActions : IKeyBindable
         var found = this.Match(key);
         if (found != null)
         {
-            if(widget.IsForwardable(found.Key))
+            if(widget.ShouldStealFromAction(found.Key))
             {
                 widget.Handle(key);
             }
@@ -225,7 +227,7 @@ internal class RectCut(RenderContext context, Rectangle rect)
 
         var result = new Rectangle(
             Rect.X,
-            Rect.Y,
+            Rect.Y+1,
             Rect.Width,
             height);
 
@@ -305,7 +307,7 @@ internal class RectCut(RenderContext context, Rectangle rect)
 
         var result = new Rectangle(
             Rect.X,
-            Rect.Y - amount,
+            Rect.Y - amount + 1,
             Rect.Width,
             amount);
 
@@ -342,6 +344,15 @@ internal class RectCut(RenderContext context, Rectangle rect)
     public RectCut Inset(int top, int leftRight, int bottom) => Inset(top, leftRight, bottom, leftRight);
     public RectCut Inset(int topBottom, int leftRight) => Inset(topBottom, leftRight, topBottom, leftRight);
     public RectCut Inset(int all) => Inset(all, all, all, all);
+
+    public RectCut CutMiddle(int width)
+    {
+        var rest = Rect.Width - width;
+        var left = rest / 2;
+        CutLeft(left);
+        CutRight(rest - left);
+        return this;
+    }
 }
 
 enum Side
@@ -434,7 +445,7 @@ internal static class RectCutTui
 }
 
 
-public class PopUp(string message, string? title = null) : Screen
+public class PopUp(string message, string? title) : Screen
 {
     public override bool IsTransparent => true;
 
@@ -456,5 +467,92 @@ public class PopUp(string message, string? title = null) : Screen
                         .Title(title ?? "", TitlePosition.Top, Justify.Center)
                         .Inner(Paragraph.FromMarkup($"{message}\n\nPress [yellow]ESC[/] to close").Centered().AlignedMiddle())
                 ));
+    }
+}
+
+public class SelectScreen<T> : Screen
+    where T : class
+{
+    private readonly string? _message;
+    private readonly string? _title;
+
+    private readonly List<T> _items;
+    private readonly KeyActions _actions;
+    private readonly ScrollableListWidget<T> _list;
+
+    public SelectScreen(IEnumerable<T> items, Func<T, string> markup, Action<T> ok, string? message, string? title)
+    {
+        _items = [..items];
+        _message = message;
+        _title = title;
+
+        _list = new ScrollableListWidget<T>(_items, markup);
+
+        _actions = new KeyActions()
+                .Bind(KeyBinding.For(Key.Escape).WithHelp("Abort"), ctx =>
+                {
+                    ctx.Pop();
+                })
+                .Bind(KeyBinding.For(Key.Enter).WithHelp("Select"), ctx =>
+                {
+                    var selected = _list.Selected;
+                    if (selected == null)
+                    {
+                        ctx.RunPopup("Nothing is selected");
+                        return;
+                    }
+                    ctx.Pop();
+                    ok(selected);
+                })
+            ;
+    }
+
+    public override bool IsTransparent => true;
+
+    public override void OnMessage(ApplicationContext context, ApplicationMessage appMessage)
+    {
+        _actions.HandleMessage(context, appMessage, _list);
+    }
+
+    public override void Render(RenderContext context)
+    {
+        var r = RectCut.Begin(context);
+        r.CutBottom(3);
+        r.CutTop(3);
+
+        int extra = _message == null ? 9 : 11;
+
+        var height = Math.Min(_items.Count + extra, 30);
+        r = r.CutBottom(height);
+        r.CutMiddle(60);
+        if(_title != null)
+        {
+            // make title a bit clearer
+            r.AddTop(1).DrawClear();
+        }
+        r.DrawTitle(_title ?? "", Clear.Yes);
+        if (_message != null)
+        {
+            r.CutTop(1).Draw(Paragraph.FromMarkup(_message));
+        }
+        r.Inset(0, 1);
+        r.Draw(_list.Render());
+    }
+}
+
+
+public static class ApplicationContextExtensions
+{
+    public static void RunSelect<T>(this ApplicationContext ctx, IEnumerable<T> items, Func<T, string> markup, Action<T> ok, string? message, string? title = null)
+        where T: class
+    {
+        var sel = new SelectScreen<T>(items, markup, ok, message, title);
+        ctx.Push(sel);
+    }
+
+    public static void RunPopup(this ApplicationContext ctx, string message, string? title = null)
+    {
+        var pop = new PopUp(message, title);
+        ctx.Push(pop);
     }
 }

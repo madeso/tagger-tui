@@ -49,7 +49,7 @@ public class TableBuilder<T>(IEnumerable<T> items) where T : class
 public sealed class TableWidget<T> : JustInTimeWidget, IFocusable, IForwardWidgetEvent, IKeyBindable
     where T : class
 {
-    public bool IsForwardable(KeyBinding binding) => false;
+    public bool ShouldStealFromAction(KeyBinding binding) => false;
     public void Handle(KeyMessage key) => HandleKey(key);
 
     private readonly Spectre.Tui.TableWidget<Row<T>> _table;
@@ -115,6 +115,8 @@ public sealed class TableWidget<T> : JustInTimeWidget, IFocusable, IForwardWidge
         action(s);
         MarkAsDirty();
     }
+
+    public IEnumerable<T> AllItems => _table.Rows.Select(x => x.Item);
 
     public void WithAll(Action<T> action)
     {

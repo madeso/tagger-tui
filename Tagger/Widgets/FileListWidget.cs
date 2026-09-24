@@ -1,48 +1,44 @@
 ﻿using Spectre.Tui;
 using Spectre.Console;
+using Spectre.Tui.App;
 using Padding = Spectre.Tui.Padding;
 using Text = Spectre.Tui.Text;
 
 namespace Tagger.Widgets;
 
-public sealed class FileItem(FileWithData file) : IListWidgetItem
+public sealed class ListItem<T>(T file, Func<T, string> markup) : IListWidgetItem
 {
-    public bool IsSelected { get => file.IsSelected; set => file.IsSelected = value; }
-
-    public void Toggle()
-    {
-        IsSelected = !IsSelected;
-    }
+    public T Item => file;
 
     Text IListWidgetItem.CreateText(bool isHovering)
     {
-        var symbol = IsSelected ? SpectreStrings.CheckMark : " ";
         var decoration = isHovering
             ? "yellow"
-            : (IsSelected ? "green" : "grey");
+            : "grey";
 
-        var display = file.Path;
-        return Text.FromMarkup(
-            IsSelected
-                ? $"[{decoration}]{symbol} {display}[/]"
-                : $"[{decoration}]{symbol} {display.RemoveMarkup()}[/]");
+        var display = markup(file);
+        return Text.FromMarkup($"[{decoration}]{display}[/]");
     }
 }
 
-public sealed class ScrollableListWidget<T>(List<T> items) : JustInTimeWidget
-    where T : IListWidgetItem
+public sealed class ScrollableListWidget<T>(List<T> items, Func<T, string> markup) : JustInTimeWidget, IForwardWidgetEvent
+    where T: class
 {
-    private readonly ListWidget<T> _widget = new ListWidget<T>(items)
+    private readonly ListWidget<ListItem<T>> _widget = new ListWidget<ListItem<T>>(items.Select(t => new ListItem<T>(t, markup)).ToList())
         .HighlightSymbol("->")
         .WrapAround()
         .SelectedIndex(0);
 
-    private T? Selected => _widget.SelectedItem;
-    public ListKeyMap<T> KeyMap => _widget.KeyMap;
+    public T? Selected => _widget.SelectedItem?.Item;
 
-    public void HandleKey(IKeyInfo info)
+    public bool ShouldStealFromAction(KeyBinding binding)
     {
-        _widget.KeyMap.HandleKey(info);
+        return false;
+    }
+
+    public void Handle(KeyMessage key)
+    {
+        _widget.KeyMap.HandleKey(key);
         MarkAsDirty();
     }
 
