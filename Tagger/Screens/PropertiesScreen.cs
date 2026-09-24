@@ -9,11 +9,18 @@ public class KeyValue(string key, bool allItemsHaveThis, ImmutableHashSet<string
 {
     public string Key { get; } = key;
     public bool AllItemsHaveThis { get; } = allItemsHaveThis;
-    public ImmutableHashSet<string> Values { get; } = values;
+    public ImmutableHashSet<string> Values { get; set; } = values;
+    public bool IsDirty { get; private set; } = false;
 
     public void ApplyProperties()
     {
         // todo
+    }
+
+    public void ChangeValues(Func<string, string> changeValue)
+    {
+        Values = Values.Select(changeValue).ToImmutableHashSet();
+        IsDirty = true;
     }
 }
 
@@ -24,15 +31,18 @@ public class PropertiesScreen : Screen
     private readonly ImmutableArray<FileWithData> _files;
     private readonly ImmutableArray<KeyValue> _items;
 
-    private readonly Widgets.TableWidget<KeyValue> _grid;
+    private Widgets.TableWidget<KeyValue> _grid;
 
     public PropertiesScreen(IEnumerable<FileWithData> data, Action ok)
     {
         _files = [.. data];
         _items = BuildFiles(_files);
-        _grid = BuildGrid();
+        _grid = BuildGrid(null);
 
         _actions = new KeyActions()
+                .Bind(KeyBinding.For('c').WithHelp("Capitalize"), _ => Perform(k => k.ChangeValues(s => s.Capitalize())))
+                .Bind(KeyBinding.For('l').WithHelp("Capitalize"), _ => Perform(k => k.ChangeValues(s => s.ToLowerInvariant())))
+                .Bind(KeyBinding.For('t').WithHelp("Trim"), _ => Perform(k => k.ChangeValues(s => s.Trim())))
                 .Bind(KeyBinding.For(Key.Escape).WithHelp("Abort"), ctx => ctx.Pop())
                 .Bind(KeyBinding.For(Key.Enter).WithHelp("Apply"), ctx =>
                 {
@@ -44,6 +54,14 @@ public class PropertiesScreen : Screen
                     ok();
                 })
             ;
+    }
+
+    private void Perform(Action<KeyValue> action)
+    {
+        var k = _grid.SelectedItem;
+        if (k == null) return;
+        action(k);
+        _grid = BuildGrid(_grid);
     }
 
     private ImmutableArray<KeyValue> BuildFiles(ImmutableArray<FileWithData> data)
@@ -61,9 +79,10 @@ public class PropertiesScreen : Screen
         }
     }
 
-    private Widgets.TableWidget<KeyValue> BuildGrid()
+    private Widgets.TableWidget<KeyValue> BuildGrid(Widgets.TableWidget<KeyValue>? oldGrid)
     {
         var builder = new TableBuilder<KeyValue>(_items);
+        builder.AddColumn(() => new TableColumn("Modified"), prop => Text.FromString(prop.IsDirty ? SpectreStrings.CheckMark : ""));
         builder.AddColumn(() => new TableColumn("Key"), prop => Text.FromString(prop.Key));
         builder.AddColumn(() => new TableColumn("All"), prop => Text.FromString(prop.AllItemsHaveThis ? SpectreStrings.CheckMark : ""));
         builder.AddColumn(() => new TableColumn("Count"), prop => Text.FromString($"{prop.Values.Count}"));
@@ -72,7 +91,13 @@ public class PropertiesScreen : Screen
                 StringListCombiner.CommaAndNone.CombineFromEnumerable(prop.Values.Select(str => $"{str}"))
         ));
 
-        return builder.Create();
+        var newGrid = builder.Create();
+        if (oldGrid != null)
+        {
+            newGrid.SelectedIndex = oldGrid.SelectedIndex;
+        }
+
+        return newGrid;
     }
 
     public override void OnMessage(ApplicationContext context, ApplicationMessage message)

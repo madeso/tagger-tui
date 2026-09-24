@@ -47,7 +47,7 @@ public class Pattern
         var t = new Dictionary<string, Func>
         {
             //t.Add("title", args => args[0].title());
-            { "capitalize", args => Capitalize(args[0]) },
+            { "capitalize", args => args[0].Capitalize() },
             { "lower", args => args[0].ToLower() },
             { "upper", args => args[0].ToUpper() },
             { "rtrim", args => args[0].TrimEnd(_opt(args, 1).ToCharArray()) },
@@ -322,24 +322,6 @@ public class Pattern
         return args.Count > i ? args[i] : d;
     }
 
-
-    private static string Capitalize(string p, bool alsoFirstChar = true)
-    {
-        var cap = alsoFirstChar;
-        var sb = new StringBuilder();
-        foreach (var h in p.ToLower())
-        {
-            var c = h;
-            if (char.IsLetter(c) && cap)
-            {
-                c = char.ToUpper(c);
-                cap = false;
-            }
-            if (char.IsWhiteSpace(c)) cap = true;
-            sb.Append(c);
-        }
-        return sb.ToString();
-    }
 
     private static string zfill(string str, string scount)
     {
