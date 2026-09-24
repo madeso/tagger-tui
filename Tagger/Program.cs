@@ -7,6 +7,7 @@ using Spectre.Tui.App;
 using System.ComponentModel;
 using System.Reflection;
 using Tagger;
+using Tagger.Screens;
 using Justify = Spectre.Tui.Justify;
 using Layout = Spectre.Console.Layout;
 using Paragraph = Spectre.Tui.Paragraph;
