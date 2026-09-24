@@ -4,6 +4,8 @@ namespace Tagger;
 
 public class StringListCombiner(string separator, string finalSeparator, string empty)
 {
+    public static StringListCombiner CommaAndNone => new StringListCombiner(", ", " and ", "<none>");
+
     public StringListCombiner(string separator, string finalSeparator) : this(separator, finalSeparator, "")
         {}
     public StringListCombiner(string separator) : this(separator, separator, "")

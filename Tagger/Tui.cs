@@ -20,9 +20,21 @@ public class MainScreen : Screen
         _files = BuildGrid(null);
 
         _actions = new KeyActions()
-            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), _ => { _files.WithSelected(s => s.Toggle());})
-            .Bind(KeyBinding.For('a').WithHelp("Select all"), _ => { _files.WithAll(s => s.IsSelected = true); })
-            .Bind(KeyBinding.For('n').WithHelp("Select none"), _ => { _files.WithAll(s => s.IsSelected = false); })
+            .Bind(KeyBinding.For(Key.Space).WithHelp("Toggle"), _ =>
+            {
+                _files.WithSelected(s => s.Toggle());
+                // todo(Gustav): should we save here or only when "major" changes have been done?
+            })
+            .Bind(KeyBinding.For('a').WithHelp("Select all"), _ =>
+            {
+                _files.WithAll(s => s.IsSelected = true);
+                _store.Save();
+            })
+            .Bind(KeyBinding.For('n').WithHelp("Select none"), _ =>
+            {
+                _files.WithAll(s => s.IsSelected = false);
+                _store.Save();
+            })
             .Bind(KeyBinding.For('x').WithHelp("Extract selected"), ctx =>
             {
                 var selectedItems = _files.Items.Where(s => s.IsSelected).ToImmutableArray();
@@ -34,11 +46,27 @@ public class MainScreen : Screen
                 ctx.Push(new ExtractScreen(selectedItems, () =>
                 {
                     _files = BuildGrid(_files);
+                    _store.Save();
+                }));
+            })
+            .Bind(KeyBinding.For('p').WithHelp("Properties"), ctx =>
+            {
+                var selectedItems = _files.Items.Where(s => s.IsSelected).ToImmutableArray();
+                if (selectedItems.Length == 0)
+                {
+                    ctx.Push(new PopUp("Nothing is selected"));
+                    return;
+                }
+                ctx.Push(new PropertiesScreen(selectedItems, () =>
+                {
+                    _files = BuildGrid(_files);
+                    _store.Save();
                 }));
             })
             .Bind(KeyBinding.For('c').WithHelp("change columns"), ctx => ctx.Push(new ColumnScreen(_store, () =>
             {
                 _files = BuildGrid(_files);
+                _store.Save();
             })))
             .Bind(KeyBinding.For(Key.Escape).WithHelp("Quit"), ctx => ctx.Pop())
             ;
@@ -111,6 +139,98 @@ internal class ExtractedFile(FileWithData file)
         {
             file.Properties[key] = value;
         }
+    }
+}
+
+public class KeyValue(string key, bool allItemsHaveThis, ImmutableHashSet<string> values)
+{
+    public string Key { get; } = key;
+    public bool AllItemsHaveThis { get; } = allItemsHaveThis;
+    public ImmutableHashSet<string> Values { get; } = values;
+
+    public void ApplyProperties()
+    {
+        // todo
+    }
+}
+
+public class PropertiesScreen : Screen
+{
+    private readonly KeyActions _actions;
+
+    private readonly ImmutableArray<FileWithData> _files;
+    private readonly ImmutableArray<KeyValue> _items;
+
+    private readonly Widgets.TableWidget<KeyValue> _grid;
+
+    public PropertiesScreen(IEnumerable<FileWithData> data, Action ok)
+    {
+        _files = [.. data];
+        _items = BuildFiles(_files);
+        _grid = BuildGrid();
+
+        _actions = new KeyActions()
+            .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
+            .Bind(KeyBinding.For(Key.Escape).WithHelp("Abort"), ctx => ctx.Pop())
+            .Bind(KeyBinding.For(Key.Enter).WithHelp("Apply"), ctx =>
+            {
+                foreach (var x in _items)
+                {
+                    x.ApplyProperties();
+                }
+                ctx.Pop();
+                ok();
+            })
+            ;
+    }
+
+    private ImmutableArray<KeyValue> BuildFiles(ImmutableArray<FileWithData> data)
+    {
+        // figure out keys
+        var keys = data.SelectMany(x => x.Properties.Keys).ToImmutableHashSet();
+        return [..keys.Select(MakeKeyValue)];
+
+        KeyValue MakeKeyValue(string key)
+        {
+            var hasAll = data.All(x => x.Properties.ContainsKey(key));
+            var values = data.Select(x => x.Properties.GetValueOrDefault(key)).Where(x => x != null)
+                .Select(x => x ?? "").ToImmutableHashSet();
+            return new KeyValue(key, hasAll, values);
+        }
+    }
+
+    private Widgets.TableWidget<KeyValue> BuildGrid()
+    {
+        var builder = new TableBuilder<KeyValue>(_items);
+        builder.AddColumn(() => new TableColumn("Key"), prop => Text.FromString(prop.Key));
+        builder.AddColumn(() => new TableColumn("All"), prop => Text.FromString(prop.AllItemsHaveThis ? SpectreStrings.CheckMark : ""));
+        builder.AddColumn(() => new TableColumn("Count"), prop => Text.FromString($"{prop.Values.Count}"));
+        builder.AddColumn(() => new TableColumn("Value").StarWidth(1), prop => Text.FromString(
+            prop.Values.Count == 1 ? prop.Values.First() :
+            StringListCombiner.CommaAndNone.CombineFromEnumerable(prop.Values.Select(str => $"{str}"))
+            ));
+
+        return builder.Create();
+    }
+
+    public override void OnMessage(ApplicationContext context, ApplicationMessage message)
+    {
+        _actions.HandleMessage(context, message, _grid);
+    }
+
+    public override void Render(RenderContext context)
+    {
+        var r = RectCut.Begin(context);
+
+        r.DrawClear();
+
+        r.DrawKeymap(k => k.Add(_grid, _actions));
+
+        r.Inset(4, 4);
+
+        r.DrawTitle($"Properties ({_files.Length})");
+
+        r.Draw(_grid);
     }
 }
 
