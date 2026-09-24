@@ -28,6 +28,8 @@ internal class ExtractedFile(FileWithData file)
     }
 }
 
+// todo(Gustav): add ability to extract from pattern string instead of file
+
 public class ExtractScreen : Screen
 {
     private readonly KeyActions _actions;

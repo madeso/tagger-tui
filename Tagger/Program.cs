@@ -145,3 +145,5 @@ internal class EditCommand : AsyncCommand<EditCommand.Settings>
         return 0;
     }
 }
+
+// todo(Gustav): add move files command

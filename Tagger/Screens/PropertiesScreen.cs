@@ -24,6 +24,9 @@ public class KeyValue(string key, bool allItemsHaveThis, ImmutableHashSet<string
     }
 }
 
+// todo(Gustav): add delete key
+// todo(Gustav): add new key from pattern
+
 public class PropertiesScreen : Screen
 {
     private readonly KeyActions _actions;
