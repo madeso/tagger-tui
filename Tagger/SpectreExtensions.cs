@@ -144,6 +144,12 @@ public class FocusHelper(params IFocusable[] items) : IKeyBindable
             throw new ArgumentException($"Unabled type {focus}");
         }
     }
+
+    public int SelectedIndex
+    {
+        get => items.IndexOf(_ring.Focused);
+        set => _ring.Focus(items[value]);
+    }
 }
 
 internal static class KeyActionsForward

@@ -244,16 +244,14 @@ public class ExtractScreen : Screen
 
     private Widgets.TableWidget<ExtractedFile> _grid;
     private bool IsFullscreen { get; set; } = true;
-    private readonly FocusHelper _focus;
+    private FocusHelper _focus;
 
     private bool DisplayErrors { get; set; } = true;
 
     public ExtractScreen(IEnumerable<FileWithData> data, Action ok)
     {
         _files = [..data.Select(x => new ExtractedFile(x))];
-        _grid = BuildGrid(null);
-
-        _focus = new FocusHelper(_filter, _grid);
+        (_grid, _focus) = BuildGrid(null, null, null);
 
         _actions = new KeyActions()
             .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
@@ -276,12 +274,12 @@ public class ExtractScreen : Screen
             ;
     }
 
-    private Widgets.TableWidget<ExtractedFile> BuildGrid(KeyValueExtractor? kve)
+    private (Widgets.TableWidget<ExtractedFile>, FocusHelper) BuildGrid(KeyValueExtractor? kve, Widgets.TableWidget<ExtractedFile>? prevGrid, FocusHelper? prevFocus)
     {
         IEnumerable<ExtractedFile> filesToView = _files;
         if (DisplayErrors == false)
         {
-            filesToView = _files.Where(x => string.IsNullOrEmpty(x.Message) == false);
+            filesToView = _files.Where(x => string.IsNullOrEmpty(x.Message));
         }
         var builder = new TableBuilder<ExtractedFile>(filesToView);
         builder.AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path));
@@ -296,7 +294,19 @@ public class ExtractScreen : Screen
             builder.AddColumn(() => new TableColumn("Msg").StarWidth(1), x => Text.FromString(x.Message ?? ""));
         }
 
-        return builder.Create();
+        var newGrid = builder.Create();
+        var newFocus = new FocusHelper(_filter, newGrid);
+
+        if (prevGrid != null)
+        {
+            newGrid.SelectedIndex = prevGrid.SelectedIndex;
+        }
+        if (prevFocus != null)
+        {
+            newFocus.SelectedIndex = prevFocus.SelectedIndex;
+        }
+
+        return (newGrid, newFocus);
     }
 
     public override void OnMessage(ApplicationContext context, ApplicationMessage message)
@@ -325,7 +335,7 @@ public class ExtractScreen : Screen
         {
             k.UpdateProperties(parsed);
         }
-        _grid = BuildGrid(parsed);
+        (_grid, _focus) = BuildGrid(parsed, _grid, _focus);
     }
 
     public override bool IsTransparent => !IsFullscreen;
