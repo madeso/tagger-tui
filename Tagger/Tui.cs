@@ -40,9 +40,36 @@ public class MainScreen : Screen
                 var allKeys = _files.AllItems.SelectMany(x => x.Properties.Keys).ToHashSet();
                 ctx.RunSelect(allKeys, x => x, key =>
                 {
-                    ctx.RunPopup($"You selected {key}");
+                    var unique = _files.AllItems.Where(x => x.Properties.ContainsKey(key)).ToImmutableArray();
+                    var values = unique.Select(x => x.Properties.GetValueOrDefault(key) ?? "")
+                        .ToColCounter().MostCommon()
+                        .Select(x => new {Value = x.Item1, Count = x.Item2})
+                        .ToImmutableArray();
+                    if (values.Length <= 1)
+                    {
+                        SelectItems(key, values[0].Value);
+                        return;
+                    }
+                    
+                    ctx.RunSelect(values, x => $"{x.Value} ({x.Count})", sel =>
+                    {
+                        SelectItems(key, sel.Value);
+                    }, null, "Choose value to select");
                 }, null, "Select key");
                 _store.Save();
+
+                return;
+
+                void SelectItems(string key, string compareTo)
+                {
+                    _files.WithAll(f =>
+                    {
+                        if (f.Properties.TryGetValue(key, out var value) == false) return;
+                        if (compareTo != value) return;
+
+                        f.IsSelected = true;
+                    });
+                }
             })
             .Bind(KeyBinding.For('x').WithHelp("Extract selected"), ctx =>
             {
