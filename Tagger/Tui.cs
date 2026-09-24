@@ -246,6 +246,8 @@ public class ExtractScreen : Screen
     private bool IsFullscreen { get; set; } = true;
     private readonly FocusHelper _focus;
 
+    private bool DisplayErrors { get; set; } = true;
+
     public ExtractScreen(IEnumerable<FileWithData> data, Action ok)
     {
         _files = [..data.Select(x => new ExtractedFile(x))];
@@ -256,6 +258,11 @@ public class ExtractScreen : Screen
         _actions = new KeyActions()
             .Bind(KeyBinding.For('c').WithHelp("Test popup"), ctx => ctx.Push(new PopUp("This is a test")))
             .Bind(KeyBinding.For('f').WithHelp("Toggle fullscreen"), _ => IsFullscreen = !IsFullscreen)
+            .Bind(KeyBinding.For('e').WithHelp("Display errors"), _ =>
+            {
+                DisplayErrors = !DisplayErrors;
+                UpdateGrid();
+            })
             .Bind(KeyBinding.For(Key.Escape).WithHelp("Abort"), ctx => ctx.Pop())
             .Bind(KeyBinding.For(Key.Enter).WithHelp("Apply"), ctx =>
             {
@@ -271,7 +278,12 @@ public class ExtractScreen : Screen
 
     private Widgets.TableWidget<ExtractedFile> BuildGrid(KeyValueExtractor? kve)
     {
-        var builder = new TableBuilder<ExtractedFile>(_files);
+        IEnumerable<ExtractedFile> filesToView = _files;
+        if (DisplayErrors == false)
+        {
+            filesToView = _files.Where(x => string.IsNullOrEmpty(x.Message) == false);
+        }
+        var builder = new TableBuilder<ExtractedFile>(filesToView);
         builder.AddColumn(() => new TableColumn("Path").StarWidth(1), x => Text.FromString(x.Path));
 
         if (kve != null)
@@ -299,6 +311,11 @@ public class ExtractScreen : Screen
         if (_filter.Text == _previousFilter) return;
         _previousFilter = _filter.Text;
 
+        UpdateGrid();
+    }
+
+    private void UpdateGrid()
+    {
         var (parsed, error) = KeyValueExtractor.Compile(_filter.Text);
         _parserError = error;
         if (error != null) return;
