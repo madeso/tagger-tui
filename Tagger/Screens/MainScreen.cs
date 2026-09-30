@@ -126,7 +126,7 @@ public class MainScreen : Screen
 
         static string EvalPattern(Pattern pattern, Dictionary<string, string> props)
         {
-            var (eval, err) = pattern.Eval(Pattern.DefaultFunctions(), props);
+            var (eval, err) = pattern.Eval(Pattern.DefaultFunctions(), props, Pattern.AttributeEval.EmptyIfMissing);
             return eval;
         }
     }

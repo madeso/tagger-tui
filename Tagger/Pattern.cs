@@ -17,7 +17,12 @@ public class ErrorList
     }
 
     public void AddMissingFunction(string name) => AddError($"Missing function {name}");
-    public void AddMissingAttribute(string name) => AddError($"Missing attribute {name}");
+
+    public string AddMissingAttribute(string name)
+    {
+        AddError($"Missing attribute {name}");
+        return string.Empty;
+    }
     public void AddSyntaxError(string name) => AddError($"Syntax error: {name}");
     public void AddInvalidState() => AddError("invalid state");
 
@@ -28,10 +33,10 @@ public class ErrorList
 
 public class Pattern
 {
-    public (string, ErrorList) Eval(Dictionary<string, Func> functions, Dictionary<string, string> data)
+    public (string, ErrorList) Eval(Dictionary<string, Func> functions, Dictionary<string, string> data, AttributeEval attribute)
     {
         var errors = new ErrorList();
-        var ret = this._list.Eval(functions, data, errors);
+        var ret = this._list.Eval(new EvalArguments(functions, attribute), data, errors);
         return (ret, errors);
     }
 
@@ -64,23 +69,31 @@ public class Pattern
 
     // --------------------------------------------------------------------------------------------
 
+    public enum AttributeEval{ErrorIfMissing, EmptyIfMissing};
+    private record EvalArguments(Dictionary<string, Func> Functions, AttributeEval Attribute);
+
     private abstract class Node
     {
-        protected Node()
-        {
-        }
-        public abstract string Eval(Dictionary<string, Func> functions, Dictionary<string, string> data, ErrorList errors);
+        public abstract string Eval(EvalArguments arguments, Dictionary<string, string> data, ErrorList errors);
     }
 
     private class Text(string text) : Node
     {
-        public override string Eval(Dictionary<string, Func> functions, Dictionary<string, string> data, ErrorList errors) => text;
+        public override string Eval(EvalArguments arguments, Dictionary<string, string> data, ErrorList errors) => text;
         public override string ToString() => text;
     }
 
     private class Attribute(string name) : Node
     {
-        public override string Eval(Dictionary<string, Func> functions, Dictionary<string, string> data, ErrorList errors) => data.GetValueOrDefault(name, "");
+        public override string Eval(EvalArguments arguments, Dictionary<string, string> data, ErrorList errors) =>
+            arguments.Attribute switch
+            {
+                AttributeEval.ErrorIfMissing => data.TryGetValue(name, out var val)
+                    ? val
+                    : errors.AddMissingAttribute(name),
+                AttributeEval.EmptyIfMissing => data.GetValueOrDefault(name, ""),
+                _ => throw new ArgumentOutOfRangeException()
+            };
         public override string ToString() => "%" + name + "%";
     }
 
@@ -99,12 +112,12 @@ public class Pattern
             }
         }
 
-        public override string Eval(Dictionary<string, Func> functions, Dictionary<string, string> data, ErrorList errors)
+        public override string Eval(EvalArguments arguments, Dictionary<string, string> data, ErrorList errors)
         {
-            if (functions.ContainsKey(this._name))
+            if (arguments.Functions.TryGetValue(this._name, out var func))
             {
-                var args = this._args.Select(a => a.Eval(functions, data, errors)).ToList();
-                return functions[this._name](args);
+                var args = this._args.Select(a => a.Eval(arguments, data, errors)).ToList();
+                return func(args);
             }
             errors.AddMissingFunction(this._name);
             return "";
@@ -115,8 +128,8 @@ public class Pattern
 
     private class List(List<Node> nodes) : Node
     {
-        public override string Eval(Dictionary<string, Func> functions, Dictionary<string, string> data, ErrorList errors)
-            => nodes.Aggregate("", (current, n) => current + n.Eval(functions, data, errors));
+        public override string Eval(EvalArguments arguments, Dictionary<string, string> data, ErrorList errors)
+            => nodes.Aggregate("", (current, n) => current + n.Eval(arguments, data, errors));
     }
 
     private static List<string> _ParseArguments(ref int start, string pattern, ErrorList errors)
