@@ -236,6 +236,7 @@ internal class CleanCommand : Command<CleanCommand.Settings>
 }
 
 
+// todo(Gustav): optionally take a mask glob and only operate on files that fit the mask
 internal class EditCommand : AsyncCommand<EditCommand.Settings>
 {
     public class Settings : CommandSettings
@@ -253,8 +254,7 @@ internal class EditCommand : AsyncCommand<EditCommand.Settings>
     }
 }
 
-// todo(Gustav): add move files command
-
+// todo(Gustav): add argument to also move "related" files (and figure out what related files include)
 internal class MoveCommand : Command<MoveCommand.Settings>
 {
     public class Settings : CommandSettings
